@@ -2,7 +2,9 @@
 
 A library for Lethal Company mods (and probably mods for any other game using Unity's AI Navigation package) to run pathfinding off the main thread.
 
-Synchronization functions are provided to prevent the navmesh being modified while pathfinding is running off the main thread. When navmesh reads off the main thread are not protected by these functions, the engine will access invalid memory and crash. See the [Threading Safety](#threading-safety) section.
+A high-level API is provided to allow convenient calculation of single paths off the main thread.
+
+Synchronization functions are provided to prevent modifications to the navmesh while searching for a path on a non-main thread. If such a thread reads from the navmesh without synchronizing first, the engine may access invalid memory and crash. See the [Threading Safety](#threading-safety) section.
 
 ### This readme is a work in progress!
 
@@ -31,7 +33,7 @@ var origin = agent.GetPathOrigin();
 pooledJob.Job.Initialize(origin, destination, agent);
 ```
 
-After the job is initialized, you should schedule your job to run whenever there are job threads available, then store the job to check the status later. When scheduling, it is preferred to ensure that your job runs after any previous jobs you have scheduled for the agent:
+After the job is initialized, you should schedule your job via `ScheduleByRef()` to run whenever there are job threads available, then store the job to check the status later. When scheduling, it is preferred to ensure that your job runs after any previous jobs you have scheduled for the agent:
 
 ```cs
 var previousJobHandle = default(JobHandle);
