@@ -1,3 +1,6 @@
+## Version 0.0.2
+- Replaced the icon with a new placeholder that will totally not stay indefinitely...
+
 ## Version 0.0.1
 Initial version. Public-facing API includes:
 - `FindPathJob`: A simple job to find a valid path for an agent to traverse between a start and end position.
