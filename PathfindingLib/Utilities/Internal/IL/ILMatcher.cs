@@ -29,38 +29,38 @@ internal interface ILMatcher
     public static OpcodeOperandMatcher Ldfld(FieldInfo field)
     {
         if (field == null)
-            Plugin.Instance.Logger.LogWarning($"Field passed to ILMatcher.Ldfld() was null\n{new StackTrace()}");
+            PathfindingLibPlugin.Instance.Logger.LogWarning($"Field passed to ILMatcher.Ldfld() was null\n{new StackTrace()}");
         return new(OpCodes.Ldfld, field);
     }
     public static OpcodeOperandMatcher Ldsfld(FieldInfo field)
     {
         if (field == null)
-            Plugin.Instance.Logger.LogWarning($"Field passed to ILMatcher.Ldsfld() was null\n{new StackTrace()}");
+            PathfindingLibPlugin.Instance.Logger.LogWarning($"Field passed to ILMatcher.Ldsfld() was null\n{new StackTrace()}");
         return new(OpCodes.Ldsfld, field);
     }
     public static OpcodeOperandMatcher Stfld(FieldInfo field)
     {
         if (field == null)
-            Plugin.Instance.Logger.LogWarning($"Field passed to ILMatcher.Stfld() was null\n{new StackTrace()}");
+            PathfindingLibPlugin.Instance.Logger.LogWarning($"Field passed to ILMatcher.Stfld() was null\n{new StackTrace()}");
         return new(OpCodes.Stfld, field);
     }
     public static OpcodeOperandMatcher Stsfld(FieldInfo field)
     {
         if (field == null)
-            Plugin.Instance.Logger.LogWarning($"Field passed to ILMatcher.Stsfld() was null\n{new StackTrace()}");
+            PathfindingLibPlugin.Instance.Logger.LogWarning($"Field passed to ILMatcher.Stsfld() was null\n{new StackTrace()}");
         return new(OpCodes.Stsfld, field);
     }
 
     public static OpcodeOperandMatcher Callvirt(MethodBase method)
     {
         if (method == null)
-            Plugin.Instance.Logger.LogWarning($"Method passed to ILMatcher.Callvirt() was null\n{new StackTrace()}");
+            PathfindingLibPlugin.Instance.Logger.LogWarning($"Method passed to ILMatcher.Callvirt() was null\n{new StackTrace()}");
         return OpcodeOperand(OpCodes.Callvirt, method);
     }
     public static OpcodeOperandMatcher Call(MethodBase method)
     {
         if (method == null)
-            Plugin.Instance.Logger.LogWarning($"Method passed to ILMatcher.Call() was null\n{new StackTrace()}");
+            PathfindingLibPlugin.Instance.Logger.LogWarning($"Method passed to ILMatcher.Call() was null\n{new StackTrace()}");
         return OpcodeOperand(OpCodes.Call, method);
     }
 

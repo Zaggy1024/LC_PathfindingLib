@@ -413,7 +413,7 @@ internal class ILInjector(IEnumerable<CodeInstruction> instructions, ILGenerator
             builder.AppendLine($"{i}: {instructions[i]}");
         }
 
-        Plugin.Instance.Logger.LogInfo(builder);
+        PathfindingLibPlugin.Instance.Logger.LogInfo(builder);
         return this;
     }
 

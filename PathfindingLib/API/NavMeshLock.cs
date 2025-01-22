@@ -204,7 +204,7 @@ public static class NavMeshLock
             ]);
         if (!injector.IsValid)
         {
-            Plugin.Instance.Logger.LogError($"Failed to find the call to {nameof(NavMeshSurface.RemoveData)} in {nameof(NavMeshSurface)}.{nameof(NavMeshSurface.UpdateDataIfTransformChanged)}.");
+            PathfindingLibPlugin.Instance.Logger.LogError($"Failed to find the call to {nameof(NavMeshSurface.RemoveData)} in {nameof(NavMeshSurface)}.{nameof(NavMeshSurface.UpdateDataIfTransformChanged)}.");
             return instructions;
         }
 
@@ -219,7 +219,7 @@ public static class NavMeshLock
             .GoToMatchEnd();
         if (!injector.IsValid)
         {
-            Plugin.Instance.Logger.LogError($"Failed to find the call to {nameof(NavMeshSurface.AddData)} in {nameof(NavMeshSurface)}.{nameof(NavMeshSurface.UpdateDataIfTransformChanged)}.");
+            PathfindingLibPlugin.Instance.Logger.LogError($"Failed to find the call to {nameof(NavMeshSurface.AddData)} in {nameof(NavMeshSurface)}.{nameof(NavMeshSurface.UpdateDataIfTransformChanged)}.");
             return instructions;
         }
 

@@ -32,5 +32,5 @@ using PathfindingLib;
 // You can specify all the values or you can default the Build and Revision Numbers
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
-[assembly: AssemblyVersion(Plugin.MOD_VERSION)]
-[assembly: AssemblyFileVersion(Plugin.MOD_VERSION)]
+[assembly: AssemblyVersion(PathfindingLibPlugin.MOD_VERSION)]
+[assembly: AssemblyFileVersion(PathfindingLibPlugin.MOD_VERSION)]

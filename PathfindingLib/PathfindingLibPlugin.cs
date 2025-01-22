@@ -7,7 +7,7 @@ using PathfindingLib.API;
 namespace PathfindingLib;
 
 [BepInPlugin(MOD_UNIQUE_NAME, MOD_NAME, MOD_VERSION)]
-public class Plugin : BaseUnityPlugin
+public class PathfindingLibPlugin : BaseUnityPlugin
 {
     internal const string MOD_NAME = "PathfindingLib";
     internal const string MOD_UNIQUE_NAME = "Zaggy1024." + MOD_NAME;
@@ -15,7 +15,7 @@ public class Plugin : BaseUnityPlugin
 
     private readonly Harmony harmony = new(MOD_UNIQUE_NAME);
 
-    public static Plugin Instance { get; private set; }
+    public static PathfindingLibPlugin Instance { get; private set; }
     public new ManualLogSource Logger => base.Logger;
 
     public void Awake()
