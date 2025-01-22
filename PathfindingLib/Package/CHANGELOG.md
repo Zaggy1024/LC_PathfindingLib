@@ -1,3 +1,6 @@
+## Version 0.0.3
+- Renamed the Plugin class to PathfindingLibPlugin.
+
 ## Version 0.0.2
 - Replaced the icon with a new placeholder that will totally not stay indefinitely...
 

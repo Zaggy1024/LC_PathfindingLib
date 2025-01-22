@@ -11,7 +11,7 @@ public class PathfindingLibPlugin : BaseUnityPlugin
 {
     internal const string MOD_NAME = "PathfindingLib";
     internal const string MOD_UNIQUE_NAME = "Zaggy1024." + MOD_NAME;
-    internal const string MOD_VERSION = "0.0.2";
+    internal const string MOD_VERSION = "0.0.3";
 
     private readonly Harmony harmony = new(MOD_UNIQUE_NAME);
 
