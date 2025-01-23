@@ -6,17 +6,17 @@ using PathfindingLib.API;
 
 namespace PathfindingLib;
 
-[BepInPlugin(MOD_UNIQUE_NAME, MOD_NAME, MOD_VERSION)]
+[BepInPlugin(PluginName, PluginGUID, PluginVersion)]
 public class PathfindingLibPlugin : BaseUnityPlugin
 {
-    internal const string MOD_NAME = "PathfindingLib";
-    internal const string MOD_UNIQUE_NAME = "Zaggy1024." + MOD_NAME;
-    internal const string MOD_VERSION = "0.0.3";
+    public const string PluginName = "PathfindingLib";
+    public const string PluginGUID = "Zaggy1024." + PluginName;
+    public const string PluginVersion = "0.0.3";
 
-    private readonly Harmony harmony = new(MOD_UNIQUE_NAME);
+    private readonly Harmony harmony = new(PluginGUID);
 
-    public static PathfindingLibPlugin Instance { get; private set; }
-    public new ManualLogSource Logger => base.Logger;
+    internal static PathfindingLibPlugin Instance { get; private set; }
+    internal new ManualLogSource Logger => base.Logger;
 
     public void Awake()
     {
