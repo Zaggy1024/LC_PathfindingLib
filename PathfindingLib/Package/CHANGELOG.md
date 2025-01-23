@@ -1,3 +1,6 @@
+## Version 0.0.5
+- Reverted an unintentional change to the plugin's GUID string.
+
 ## Version 0.0.4
 - Made the plugin GUID public for convenient hard dependency setup.
 
