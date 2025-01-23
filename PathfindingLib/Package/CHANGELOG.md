@@ -1,3 +1,6 @@
+## Version 0.0.4
+- Made the plugin GUID public for convenient hard dependency setup.
+
 ## Version 0.0.3
 - Renamed the Plugin class to PathfindingLibPlugin.
 
