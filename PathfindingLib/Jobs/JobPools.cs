@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 using UnityEngine.Pool;
 
 namespace PathfindingLib.Jobs;
@@ -28,6 +30,12 @@ public static class JobPools
     /// <param name="job">A pooled instance of <see cref="FindPathJob"/> previously provided by <see cref="GetFindPathJob"/>.</param>
     public static void ReleaseFindPathJob(PooledFindPathJob job)
     {
+        if (job == null)
+        {
+            PathfindingLibPlugin.Instance.Logger.LogError($"Attempted to free a null job\n{new StackTrace()}");
+            return;
+        }
+
         findPathPool.Release(job);
     }
 }
