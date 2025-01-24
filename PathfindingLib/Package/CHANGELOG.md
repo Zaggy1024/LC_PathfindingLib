@@ -1,3 +1,6 @@
+## Version 0.0.6
+- Prevented API users releasing null `PooledFindPathJob` back to the pool to avoid null error spam.
+
 ## Version 0.0.5
 - Reverted an unintentional change to the plugin's GUID string.
 
