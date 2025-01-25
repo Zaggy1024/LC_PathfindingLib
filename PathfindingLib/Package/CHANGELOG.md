@@ -1,6 +1,9 @@
+## Version 0.0.8
+- Fixed an issue where `FindPathJob` was not taking the read lock at the start of the job, but would later take the lock without releasing it, which could result in deadlocks.
+
 ## Version 0.0.7
 - Reduced blocking of the main thread by hooking into the Unity runtime to detect when carving obstacles will make changes to the navmesh.
-- Changed documentation to recommend using NavMeshQuery.UpdateFindPath() with an iteration limit, and unlocking the navmesh read between calls.
+- Changed documentation to recommend using `NavMeshQuery.UpdateFindPath()` with an iteration limit, and unlocking the navmesh read between calls.
 
 ## Version 0.0.6
 - Prevented API users releasing null `PooledFindPathJob` back to the pool to avoid null error spam.

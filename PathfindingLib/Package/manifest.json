@@ -1,7 +1,7 @@
 {
     "name": "PathfindingLib",
     "author": "Zaggy1024",
-    "version_number": "0.0.7",
+    "version_number": "0.0.8",
     "website_url": "https://github.com/Zaggy1024/LC_PathfindingLib/",
     "description": "Provides functionality for mod authors to run pathfinding off of the main thread.",
     "dependencies": [
