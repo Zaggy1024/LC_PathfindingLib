@@ -52,11 +52,6 @@ public static class NavMeshLock
     /// <para>This must be followed by a call to <see cref="EndRead"/>,
     /// or the main thread will deadlock and the game will be frozen permanently. It may be called
     /// between calls to <see cref="NavMeshQuery.UpdateFindPath"/></para>
-    /// 
-    /// <para>This method will block at the start of every frame in anticipation of the navmesh being
-    /// updated during the AIUpdate subsystem. The navmesh is not guaranteed to be modified during
-    /// that part of the player loop, but there is no way to detect when holes carved by obstacles
-    /// get updated in the navmesh, so it is defensively blocked until that subsystem finishes.</para>
     /// </summary>
     public static void BeginRead()
     {
