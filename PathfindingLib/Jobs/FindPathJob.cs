@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -72,12 +72,15 @@ public struct FindPathJob : IJob, IDisposable
     {
         var query = ThreadQueriesRef[ThreadIndex];
 
+        NavMeshLock.BeginRead();
+
         var originExtents = new Vector3(MaximumOriginDistance, MaximumOriginDistance, MaximumOriginDistance);
         var origin = query.MapLocation(Origin, originExtents, AgentTypeID, AreaMask);
 
         if (!query.IsValid(origin.polygon))
         {
             Status[0] = PathQueryStatus.Failure;
+            NavMeshLock.EndRead();
             return;
         }
 
@@ -86,6 +89,7 @@ public struct FindPathJob : IJob, IDisposable
         if (!query.IsValid(destinationLocation))
         {
             Status[0] = PathQueryStatus.Failure;
+            NavMeshLock.EndRead();
             return;
         }
 
@@ -93,6 +97,7 @@ public struct FindPathJob : IJob, IDisposable
         if (status.GetResult() == PathQueryStatus.Failure)
         {
             Status[0] = PathQueryStatus.Failure;
+            NavMeshLock.EndRead();
             return;
         }
 
@@ -106,6 +111,7 @@ public struct FindPathJob : IJob, IDisposable
         if (status.GetResult() != PathQueryStatus.Success)
         {
             Status[0] = PathQueryStatus.Failure;
+            NavMeshLock.EndRead();
             return;
         }
 
@@ -115,6 +121,8 @@ public struct FindPathJob : IJob, IDisposable
         using var path = new NativeArray<NavMeshLocation>(NavMeshQueryUtils.RecommendedCornerCount, Allocator.Temp);
         var straightPathStatus = NavMeshQueryUtils.FindStraightPath(query, Origin, Destination, pathNodes, pathNodesSize, path, out var pathSize);
         pathNodes.Dispose();
+
+        NavMeshLock.EndRead();
 
         if (straightPathStatus.GetResult() != PathQueryStatus.Success)
         {
