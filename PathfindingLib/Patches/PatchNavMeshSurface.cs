@@ -19,7 +19,6 @@ internal static class PatchNavMeshSurface
 
     [HarmonyTranspiler]
     [HarmonyPatch(typeof(NavMeshSurface), nameof(NavMeshSurface.BuildNavMesh))]
-    [HarmonyPatch(typeof(NavMeshSurface), nameof(NavMeshSurface.UpdateActive))]
     [HarmonyPatch(typeof(NavMeshSurface), nameof(NavMeshSurface.AddData))]
     [HarmonyPatch(typeof(NavMeshSurface), nameof(NavMeshSurface.RemoveData))]
     private static IEnumerable<CodeInstruction> LockWriteForDurationOfMethodTranspiler(IEnumerable<CodeInstruction> instructions)

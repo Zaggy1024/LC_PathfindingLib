@@ -1,11 +1,6 @@
-﻿using System.Threading;
-
-using HarmonyLib;
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.Assertions;
 using UnityEngine.Experimental.AI;
-using UnityEngine.LowLevel;
-using UnityEngine.PlayerLoop;
 
 using PathfindingLib.Utilities.Internal;
 
@@ -57,7 +52,6 @@ public static class NavMeshLock
     /// </summary>
     public static void BeginRead()
     {
-        JobRunCondition.WaitOne();
         BlockingLock.BeginRead();
     }
 
@@ -74,97 +68,4 @@ public static class NavMeshLock
 
     internal static ReadersWriterLock BlockingLock = new();
     internal static int BlockingLockDepth = 0;
-    internal static ManualResetEvent JobRunCondition = new(true);
-
-    private class LockJobs { }
-
-    private class AIUpdateGroup { }
-
-    private class BeforeAIUpdate { }
-
-    private class AfterAIUpdate { }
-
-    internal static bool Initialize(Harmony harmony)
-    {
-        var loop = PlayerLoop.GetCurrentPlayerLoop();
-
-        if (!SearchAndInjectAIUpdatePrefixAndPostfix(ref loop))
-            return false;
-
-        var lockJobs = new PlayerLoopSystem()
-        {
-            type = typeof(LockJobs),
-            updateDelegate = PauseJobsImpl,
-        };
-        loop.subSystemList = [lockJobs, .. loop.subSystemList];
-        PlayerLoop.SetPlayerLoop(loop);
-
-        harmony.PatchAll(typeof(NavMeshLock));
-
-        return true;
-    }
-
-    private static bool SearchAndInjectAIUpdatePrefixAndPostfix(ref PlayerLoopSystem currentSubSystem)
-    {
-        if (currentSubSystem.subSystemList == null)
-            return false;
-
-        var index = -1;
-        for (var i = 0; i < currentSubSystem.subSystemList.Length; i++)
-        {
-            if (currentSubSystem.subSystemList[i].type == typeof(PreUpdate.AIUpdate))
-            {
-                index = i;
-                break;
-            }
-        }
-
-        if (index == -1)
-        {
-            for (var i = 0; i < currentSubSystem.subSystemList.Length; i++)
-            {
-                if (SearchAndInjectAIUpdatePrefixAndPostfix(ref currentSubSystem.subSystemList[i]))
-                    return true;
-            }
-
-            return false;
-        }
-
-        ref var subSystems = ref currentSubSystem.subSystemList;
-
-        var prefixSubSystem = new PlayerLoopSystem()
-        {
-            type = typeof(BeforeAIUpdate),
-            updateDelegate = BeforeAIUpdateImpl,
-        };
-        var postfixSubSystem = new PlayerLoopSystem()
-        {
-            type = typeof(AfterAIUpdate),
-            updateDelegate = AfterAIUpdateImpl,
-        };
-        var nestedSystem = new PlayerLoopSystem()
-        {
-            type = typeof(AIUpdateGroup),
-            subSystemList = [prefixSubSystem, subSystems[index], postfixSubSystem],
-        };
-
-        subSystems[index] = nestedSystem;
-        return true;
-    }
-
-    private static void PauseJobsImpl()
-    {
-        JobRunCondition.Reset();
-    }
-
-    private static void BeforeAIUpdateImpl()
-    {
-        BeginWrite();
-    }
-
-    private static void AfterAIUpdateImpl()
-    {
-        EndWrite();
-        JobRunCondition.Set();
-    }
 }

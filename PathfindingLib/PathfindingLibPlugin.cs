@@ -1,9 +1,11 @@
+﻿using System.Diagnostics;
+
 using BepInEx;
 using BepInEx.Logging;
 using HarmonyLib;
 
-using PathfindingLib.API;
 using PathfindingLib.Patches;
+using PathfindingLib.Patches.Native;
 
 namespace PathfindingLib;
 
@@ -23,12 +25,27 @@ public class PathfindingLibPlugin : BaseUnityPlugin
     {
         Instance = this;
 
-        if (!NavMeshLock.Initialize(harmony))
-        {
-            Logger.LogInfo($"Failed to initialize navmesh concurrency safeties.");
-            return;
-        }
+        ApplyAllNativePatches();
 
         harmony.PatchAll(typeof(PatchNavMeshSurface));
+    }
+
+    private static ProcessModule GetUnityPlayerModule()
+    {
+        var modules = Process.GetCurrentProcess().Modules;
+        for (var i = 0; i < modules.Count; i++)
+        {
+            var module = modules[i];
+            if (module.ModuleName.Contains("UnityPlayer"))
+                return module;
+        }
+
+        return null;
+    }
+
+    private static void ApplyAllNativePatches()
+    {
+        var module = GetUnityPlayerModule();
+        PatchApplyCarvingResults.Apply(module.BaseAddress);
     }
 }
