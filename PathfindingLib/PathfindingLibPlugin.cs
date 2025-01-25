@@ -1,8 +1,9 @@
-﻿using BepInEx;
+using BepInEx;
 using BepInEx.Logging;
 using HarmonyLib;
 
 using PathfindingLib.API;
+using PathfindingLib.Patches;
 
 namespace PathfindingLib;
 
@@ -27,5 +28,7 @@ public class PathfindingLibPlugin : BaseUnityPlugin
             Logger.LogInfo($"Failed to initialize navmesh concurrency safeties.");
             return;
         }
+
+        harmony.PatchAll(typeof(PatchNavMeshSurface));
     }
 }
