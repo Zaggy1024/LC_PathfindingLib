@@ -87,7 +87,12 @@ if (status.GetStatus() == PathQueryStatus.Failure)
 }
 
 while (status.GetStatus() == PathQueryStatus.InProgress)
-    status = query.UpdateFindPath(int.MaxValue, out int _);
+{
+    // Limit on the number of iterations per read lock to free up the main thread quickly
+    // when it is waiting for a write lock.
+    status = query.UpdateFindPath(NavMeshLock.RecommendedUpdateFindPathIterationCount, out int _);
+    NavMeshLock.YieldRead();
+}
 
 status = query.EndFindPath(out var pathNodesSize);
 
@@ -105,16 +110,3 @@ query.GetPathResult(pathNodes);
 // NavMeshQuery.
 NavMeshLock.EndRead();
 ```
-
-Note that while the read lock is held, the main thread cannot advance past the start of the AIUpdate subsystem. This happens fairly early in the frame, so there may not be enough time between the start of the frame and the AIUpdate subsystem for a long path to complete and free up the navmesh locks. This will result in a slight delay in a game frame, and can potentially by reducing the number of iterations calculated in the call to `NavMeshQuery.UpdateFindPath()`:
-
-```cs
-while (status.GetStatus() == PathQueryStatus.InProgress)
-{
-    NavMeshLock.EndRead();
-    NavMeshLock.BeginRead();
-    status = query.UpdateFindPath(128, out int _);
-}
-```
-
-This should allow the main thread to resume sooner each frame if there are jobs running. However, calculating the entire path in a frame seems to usually only take up to 0.6ms on the high end, so generally it is not very noticeable when the main thread is delayed by this.

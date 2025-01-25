@@ -8,6 +8,14 @@ namespace PathfindingLib.API;
 
 public static class NavMeshLock
 {
+    private const int recommendedSliceCount = 128;
+
+    /// <summary>
+    /// The recommended number of iterations that should be run per call to NavMeshQueryUpdateFindPath()
+    /// to avoid delaying the main thread when it tries to take a write lock.
+    /// </summary>
+    public static int RecommendedUpdateFindPathIterationCount => recommendedSliceCount;
+
     /// <summary>
     /// This should be called before any sequence of calls to methods that modify the navmesh.
     /// 
@@ -64,6 +72,16 @@ public static class NavMeshLock
     public static void EndRead()
     {
         BlockingLock.EndRead();
+    }
+
+    /// <summary>
+    /// Call this to check if the main thread is waiting to write to the navmesh, and pause execution
+    /// until the write finishes. Must be called with a read lock held.
+    /// </summary>
+    public static void YieldRead()
+    {
+        EndRead();
+        BeginRead();
     }
 
     internal static ReadersWriterLock BlockingLock = new();

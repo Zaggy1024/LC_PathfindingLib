@@ -8,6 +8,7 @@ using UnityEngine.AI;
 using UnityEngine.Experimental.AI;
 
 using PathfindingLib.Utilities;
+using PathfindingLib.API;
 
 namespace PathfindingLib.Jobs;
 
@@ -96,7 +97,10 @@ public struct FindPathJob : IJob, IDisposable
         }
 
         while (status.GetResult() == PathQueryStatus.InProgress)
-            status = query.UpdateFindPath(int.MaxValue, out int _);
+        {
+            status = query.UpdateFindPath(NavMeshLock.RecommendedUpdateFindPathIterationCount, out int _);
+            NavMeshLock.YieldRead();
+        }
 
         status = query.EndFindPath(out var pathNodesSize);
         if (status.GetResult() != PathQueryStatus.Success)
