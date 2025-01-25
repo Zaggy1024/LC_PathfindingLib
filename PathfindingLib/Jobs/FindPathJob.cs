@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -9,6 +9,10 @@ using UnityEngine.Experimental.AI;
 
 using PathfindingLib.Utilities;
 using PathfindingLib.API;
+
+#if BENCHMARKING
+using Unity.Profiling;
+#endif
 
 namespace PathfindingLib.Jobs;
 
@@ -68,11 +72,19 @@ public struct FindPathJob : IJob, IDisposable
         PathLength[0] = float.MaxValue;
     }
 
+#if BENCHMARKING
+    private static readonly ProfilerMarker FindPathMarker = new("FindPath");
+#endif
+
     public void Execute()
     {
         var query = ThreadQueriesRef[ThreadIndex];
 
         NavMeshLock.BeginRead();
+
+#if BENCHMARKING
+        using var markerAuto = new TogglableProfilerAuto(in FindPathMarker);
+#endif
 
         var originExtents = new Vector3(MaximumOriginDistance, MaximumOriginDistance, MaximumOriginDistance);
         var origin = query.MapLocation(Origin, originExtents, AgentTypeID, AreaMask);
@@ -104,7 +116,14 @@ public struct FindPathJob : IJob, IDisposable
         while (status.GetResult() == PathQueryStatus.InProgress)
         {
             status = query.UpdateFindPath(NavMeshLock.RecommendedUpdateFindPathIterationCount, out int _);
+
+#if BENCHMARKING
+            markerAuto.Pause();
+#endif
             NavMeshLock.YieldRead();
+#if BENCHMARKING
+            markerAuto.Resume();
+#endif
         }
 
         status = query.EndFindPath(out var pathNodesSize);
