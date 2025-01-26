@@ -74,6 +74,7 @@ public struct FindPathJob : IJob, IDisposable
 
 #if BENCHMARKING
     private static readonly ProfilerMarker FindPathMarker = new("FindPath");
+    private static readonly ProfilerMarker FinalizeJobMarker = new("FinalizeJob");
 #endif
 
     public void Execute()
@@ -142,6 +143,10 @@ public struct FindPathJob : IJob, IDisposable
         pathNodes.Dispose();
 
         NavMeshLock.EndRead();
+#if BENCHMARKING
+        markerAuto.Pause();
+        using var finalizeMarkerAuto = FinalizeJobMarker.Auto();
+#endif
 
         if (straightPathStatus.GetResult() != PathQueryStatus.Success)
         {
