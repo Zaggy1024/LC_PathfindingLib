@@ -1,3 +1,6 @@
+## Version 0.0.11
+- Reverted unreliable `NavMeshLock` safeties that were causing exceptions when apparently taking read locks on the main thread.
+
 ## Version 0.0.10
 - Fixed pathfinding jobs not functioning properly in release builds.
 

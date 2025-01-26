@@ -14,7 +14,7 @@ public class PathfindingLibPlugin : BaseUnityPlugin
 {
     public const string PluginName = "PathfindingLib";
     public const string PluginGUID = "Zaggy1024." + PluginName;
-    public const string PluginVersion = "0.0.10";
+    public const string PluginVersion = "0.0.11";
 
     private readonly Harmony harmony = new(PluginGUID);
 
