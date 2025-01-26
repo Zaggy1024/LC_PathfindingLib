@@ -4,6 +4,8 @@ using UnityEngine.Experimental.AI;
 
 using PathfindingLib.Utilities.Internal;
 
+using Object = UnityEngine.Object;
+
 namespace PathfindingLib.API;
 
 public static class NavMeshLock
@@ -28,7 +30,7 @@ public static class NavMeshLock
     /// </summary>
     public static void BeginWrite()
     {
-        if (!PathfindingLibPlugin.CurrentThreadIsMainThread())
+        if (!Object.CurrentThreadIsMainThread())
             throw new InvalidOperationException("Nav mesh write locks can only be taken on the main thread.");
         if (BlockingLockDepth++ == 0)
             BlockingLock.BeginWrite();
@@ -41,7 +43,7 @@ public static class NavMeshLock
     /// </summary>
     public static void EndWrite()
     {
-        if (!PathfindingLibPlugin.CurrentThreadIsMainThread())
+        if (!Object.CurrentThreadIsMainThread())
             throw new InvalidOperationException("Nav mesh write locks can only be taken on the main thread.");
         if (--BlockingLockDepth == 0)
             BlockingLock.EndWrite();
@@ -57,7 +59,7 @@ public static class NavMeshLock
     /// </summary>
     public static void BeginRead()
     {
-        if (PathfindingLibPlugin.CurrentThreadIsMainThread())
+        if (Object.CurrentThreadIsMainThread())
             throw new InvalidOperationException("Nav mesh read locks cannot be taken on the main thread.");
         BlockingLock.BeginRead();
     }
@@ -70,7 +72,7 @@ public static class NavMeshLock
     /// </summary>
     public static void EndRead()
     {
-        if (PathfindingLibPlugin.CurrentThreadIsMainThread())
+        if (Object.CurrentThreadIsMainThread())
             throw new InvalidOperationException("Nav mesh read locks cannot be taken on the main thread.");
         BlockingLock.EndRead();
     }
