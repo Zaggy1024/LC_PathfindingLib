@@ -30,8 +30,6 @@ public static class NavMeshLock
     /// </summary>
     public static void BeginWrite()
     {
-        if (!Object.CurrentThreadIsMainThread())
-            throw new InvalidOperationException("Nav mesh write locks can only be taken on the main thread.");
         if (BlockingLockDepth++ == 0)
             BlockingLock.BeginWrite();
     }
@@ -43,8 +41,6 @@ public static class NavMeshLock
     /// </summary>
     public static void EndWrite()
     {
-        if (!Object.CurrentThreadIsMainThread())
-            throw new InvalidOperationException("Nav mesh write locks can only be taken on the main thread.");
         if (--BlockingLockDepth == 0)
             BlockingLock.EndWrite();
     }
@@ -59,8 +55,6 @@ public static class NavMeshLock
     /// </summary>
     public static void BeginRead()
     {
-        if (Object.CurrentThreadIsMainThread())
-            throw new InvalidOperationException("Nav mesh read locks cannot be taken on the main thread.");
         BlockingLock.BeginRead();
     }
 
@@ -72,8 +66,6 @@ public static class NavMeshLock
     /// </summary>
     public static void EndRead()
     {
-        if (Object.CurrentThreadIsMainThread())
-            throw new InvalidOperationException("Nav mesh read locks cannot be taken on the main thread.");
         BlockingLock.EndRead();
     }
 
