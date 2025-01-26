@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Threading;
 
 using BepInEx;
 using BepInEx.Logging;
@@ -21,6 +22,8 @@ public class PathfindingLibPlugin : BaseUnityPlugin
     internal static PathfindingLibPlugin Instance { get; private set; }
     internal new ManualLogSource Logger => base.Logger;
 
+    internal static Thread MainThread = null;
+
     public void Awake()
     {
         Instance = this;
@@ -28,6 +31,8 @@ public class PathfindingLibPlugin : BaseUnityPlugin
         ApplyAllNativePatches();
 
         harmony.PatchAll(typeof(PatchNavMeshSurface));
+
+        MainThread = Thread.CurrentThread;
     }
 
     private static ProcessModule GetUnityPlayerModule()
@@ -47,5 +52,10 @@ public class PathfindingLibPlugin : BaseUnityPlugin
     {
         var module = GetUnityPlayerModule();
         PatchApplyCarvingResults.Apply(module.BaseAddress);
+    }
+
+    internal static new bool CurrentThreadIsMainThread()
+    {
+        return Thread.CurrentThread == MainThread;
     }
 }
