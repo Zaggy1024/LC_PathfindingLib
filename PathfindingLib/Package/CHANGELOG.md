@@ -1,3 +1,7 @@
+## Version 0.0.9
+- Added some extra checks to help ensure `NavMeshLock` that is used safely.
+- Made `TogglableProfilerAuto` methods public.
+
 ## Version 0.0.8
 - Fixed an issue where `FindPathJob` was not taking the read lock at the start of the job, but would later take the lock without releasing it, which could result in deadlocks.
 
