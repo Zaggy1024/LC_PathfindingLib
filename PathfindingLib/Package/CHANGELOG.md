@@ -1,3 +1,6 @@
+## Version 0.0.10
+- Fixed pathfinding jobs not functioning properly in release builds.
+
 ## Version 0.0.9
 - Added some extra checks to help ensure `NavMeshLock` that is used safely.
 - Made `TogglableProfilerAuto` methods public.
