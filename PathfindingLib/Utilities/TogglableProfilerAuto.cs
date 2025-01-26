@@ -17,14 +17,14 @@ public struct TogglableProfilerAuto : IDisposable
     internal bool on;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal TogglableProfilerAuto(in ProfilerMarker marker)
+    public TogglableProfilerAuto(in ProfilerMarker marker)
     {
         ptr = marker.m_Ptr;
         on = true;
         ProfilerUnsafeUtility.BeginSample(ptr);
     }
 
-    internal void Pause()
+    public void Pause()
     {
         if (on)
         {
@@ -33,7 +33,7 @@ public struct TogglableProfilerAuto : IDisposable
         }
     }
 
-    internal void Resume()
+    public void Resume()
     {
         if (!on)
         {
