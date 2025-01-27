@@ -1,3 +1,6 @@
+## Version 0.0.12
+- Added some more flexible safeties to `NavMeshLock` to help avoid deadlocks.
+
 ## Version 0.0.11
 - Reverted unreliable `NavMeshLock` safeties that were causing exceptions when apparently taking read locks on the main thread.
 
