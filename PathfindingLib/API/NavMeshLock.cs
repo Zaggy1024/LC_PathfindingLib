@@ -1,10 +1,7 @@
 ﻿using System;
+using System.Threading;
 
 using UnityEngine.Experimental.AI;
-
-using PathfindingLib.Utilities.Internal;
-
-using Object = UnityEngine.Object;
 
 namespace PathfindingLib.API;
 
@@ -30,8 +27,24 @@ public static class NavMeshLock
     /// </summary>
     public static void BeginWrite()
     {
-        if (BlockingLockDepth++ == 0)
-            BlockingLock.BeginWrite();
+        ref var state = ref threadState;
+
+        // If this thread has started a read, we disallow starting a write.
+        if (state < 0)
+            throw CreateAndPrintInvalidOperationException("Cannot begin a navmesh write while a read is ongoing.");
+
+        // If this thread was already writing, count the recursion and skip the write lock.
+        if (state++ > 0)
+            return;
+
+        lock (conditionVariable)
+        {
+            writersWaiting++;
+            while (readersActive > 0 || writerActive)
+                Monitor.Wait(conditionVariable);
+            writersWaiting--;
+            writerActive = true;
+        }
     }
 
     /// <summary>
@@ -41,8 +54,23 @@ public static class NavMeshLock
     /// </summary>
     public static void EndWrite()
     {
-        if (--BlockingLockDepth == 0)
-            BlockingLock.EndWrite();
+        ref var state = ref threadState;
+
+        // If this thread is not writing, we cannot release the write lock, so throw an exception.
+        if (state <= 0)
+            throw CreateAndPrintInvalidOperationException("A navmesh write has not been started.");
+
+        // If this thread is still writing after removing from the recursion, keep the write lock.
+        if (--state > 0)
+            return;
+
+        lock (conditionVariable)
+        {
+            if (!writerActive)
+                throw CreateAndPrintInvalidOperationException($"{nameof(EndWrite)}() was called without first calling {nameof(BeginWrite)}.");
+            writerActive = false;
+            Monitor.PulseAll(conditionVariable);
+        }
     }
 
     /// <summary>
@@ -55,7 +83,22 @@ public static class NavMeshLock
     /// </summary>
     public static void BeginRead()
     {
-        BlockingLock.BeginRead();
+        ref var state = ref threadState;
+
+        // If this thread is writing, don't allow starting a read within it.
+        if (state > 0)
+            throw CreateAndPrintInvalidOperationException("Cannot begin a navmesh read while a write is ongoing.");
+
+        // If this thread was already reading, count the recursion and skip the read lock.
+        if (state-- < 0)
+            return;
+
+        lock (conditionVariable)
+        {
+            while (writersWaiting > 0 || writerActive)
+                Monitor.Wait(conditionVariable);
+            readersActive++;
+        }
     }
 
     /// <summary>
@@ -66,7 +109,24 @@ public static class NavMeshLock
     /// </summary>
     public static void EndRead()
     {
-        BlockingLock.EndRead();
+        ref var state = ref threadState;
+
+        // If this thread is not reading, we cannot release the read lock, so throw an exception.
+        if (state >= 0)
+            throw CreateAndPrintInvalidOperationException("A navmesh read has not been started.");
+
+        // If this thread is still reading after removing from the recursion, keep the read lock.
+        if (++state < 0)
+            return;
+
+        lock (conditionVariable)
+        {
+            readersActive--;
+            if (readersActive < 0)
+                throw CreateAndPrintInvalidOperationException($"{nameof(EndRead)}() was called more times than {nameof(BeginRead)}.");
+            else if (readersActive == 0)
+                Monitor.PulseAll(conditionVariable);
+        }
     }
 
     /// <summary>
@@ -79,6 +139,19 @@ public static class NavMeshLock
         BeginRead();
     }
 
-    internal static ReadersWriterLock BlockingLock = new();
-    internal static int BlockingLockDepth = 0;
+    [ThreadStatic]
+    private static int threadState = 0;
+
+    private static readonly object conditionVariable = new();
+
+    private static int readersActive = 0;
+    private static int writersWaiting = 0;
+    private static bool writerActive = false;
+
+    private static InvalidOperationException CreateAndPrintInvalidOperationException(string message)
+    {
+        PathfindingLibPlugin.Instance.Logger.LogError(message);
+        PathfindingLibPlugin.Instance.Logger.LogError("Check Unity's Player.log to see the exception's stack trace.");
+        return new InvalidOperationException(message);
+    }
 }
