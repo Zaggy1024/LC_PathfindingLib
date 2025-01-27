@@ -81,7 +81,7 @@ public struct FindPathJob : IJob, IDisposable
     {
         var query = ThreadQueriesRef[ThreadIndex];
 
-        NavMeshLock.BeginRead();
+        using var readLocker = new NavMeshReadLocker();
 
 #if BENCHMARKING
         using var markerAuto = new TogglableProfilerAuto(in FindPathMarker);
@@ -93,7 +93,6 @@ public struct FindPathJob : IJob, IDisposable
         if (!query.IsValid(origin.polygon))
         {
             Status[0] = PathQueryStatus.Failure;
-            NavMeshLock.EndRead();
             return;
         }
 
@@ -102,7 +101,6 @@ public struct FindPathJob : IJob, IDisposable
         if (!query.IsValid(destinationLocation))
         {
             Status[0] = PathQueryStatus.Failure;
-            NavMeshLock.EndRead();
             return;
         }
 
@@ -110,7 +108,6 @@ public struct FindPathJob : IJob, IDisposable
         if (status.GetResult() == PathQueryStatus.Failure)
         {
             Status[0] = PathQueryStatus.Failure;
-            NavMeshLock.EndRead();
             return;
         }
 
@@ -121,7 +118,7 @@ public struct FindPathJob : IJob, IDisposable
 #if BENCHMARKING
             markerAuto.Pause();
 #endif
-            NavMeshLock.YieldRead();
+            readLocker.Yield();
 #if BENCHMARKING
             markerAuto.Resume();
 #endif
@@ -131,7 +128,6 @@ public struct FindPathJob : IJob, IDisposable
         if (status.GetResult() != PathQueryStatus.Success)
         {
             Status[0] = PathQueryStatus.Failure;
-            NavMeshLock.EndRead();
             return;
         }
 
@@ -142,7 +138,8 @@ public struct FindPathJob : IJob, IDisposable
         var straightPathStatus = NavMeshQueryUtils.FindStraightPath(query, Origin, Destination, pathNodes, pathNodesSize, path, out var pathSize);
         pathNodes.Dispose();
 
-        NavMeshLock.EndRead();
+        readLocker.Dispose();
+
 #if BENCHMARKING
         markerAuto.Pause();
         using var finalizeMarkerAuto = FinalizeJobMarker.Auto();
