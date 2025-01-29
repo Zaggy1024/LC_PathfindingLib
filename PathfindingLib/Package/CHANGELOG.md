@@ -1,3 +1,6 @@
+## Version 0.0.13
+- Reduced allocations by deprecating the reference-type `NavMeshReadLocker` in favor of a new value-type version in the `Utilities` namespace.
+
 ## Version 0.0.12
 - Added some more flexible safeties to `NavMeshLock` to help avoid deadlocks.
 
