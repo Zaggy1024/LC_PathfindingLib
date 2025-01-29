@@ -10,6 +10,8 @@ using UnityEngine.Experimental.AI;
 using PathfindingLib.Utilities;
 using PathfindingLib.API;
 
+using NavMeshReadLocker = PathfindingLib.Utilities.NavMeshReadLocker;
+
 #if BENCHMARKING
 using Unity.Profiling;
 #endif

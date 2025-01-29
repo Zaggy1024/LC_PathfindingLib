@@ -1,9 +1,10 @@
 ﻿using System;
 
-namespace PathfindingLib.API;
+using PathfindingLib.API;
 
-[Obsolete("Use PathfindingLib.Utilities.NavMeshReadLocker")]
-internal class NavMeshReadLocker : IDisposable
+namespace PathfindingLib.Utilities;
+
+public struct NavMeshReadLocker : IDisposable
 {
     private bool locked = false;
 
