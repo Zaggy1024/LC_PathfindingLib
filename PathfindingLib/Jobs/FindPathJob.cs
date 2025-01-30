@@ -68,10 +68,25 @@ public struct FindPathJob : IJob, IDisposable
         // Shhhh, compiler...
         ThreadIndex = -1;
 
-        Status = new NativeArray<PathQueryStatus>(1, Allocator.Persistent);
+        CreateArrays();
+
         Status[0] = PathQueryStatus.InProgress;
-        PathLength = new NativeArray<float>(1, Allocator.Persistent);
         PathLength[0] = float.MaxValue;
+    }
+
+    private void CreateArrays()
+    {
+        if (Status.Length == 1)
+            return;
+
+        Status = new NativeArray<PathQueryStatus>(1, Allocator.Persistent);
+        PathLength = new NativeArray<float>(1, Allocator.Persistent);
+    }
+
+    private void DisposeArrays()
+    {
+        Status.Dispose();
+        PathLength.Dispose();
     }
 
 #if BENCHMARKING
@@ -197,7 +212,6 @@ public struct FindPathJob : IJob, IDisposable
 
     public void Dispose()
     {
-        Status.Dispose();
-        PathLength.Dispose();
+        DisposeArrays();
     }
 }
