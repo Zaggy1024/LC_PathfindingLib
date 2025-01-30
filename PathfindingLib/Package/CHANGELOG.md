@@ -1,3 +1,6 @@
+## Version 0.0.14
+- Fixed a small leak of single-element arrays in `FindPathJob`.
+
 ## Version 0.0.13
 - Reduced allocations by deprecating the reference-type `NavMeshReadLocker` in favor of a new value-type version in the `Utilities` namespace.
 
