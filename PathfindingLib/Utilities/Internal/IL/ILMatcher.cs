@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
-
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 
 namespace PathfindingLib.Utilities.Internal.IL;
@@ -12,62 +12,83 @@ internal interface ILMatcher
 {
     public bool Matches(CodeInstruction instruction);
 
-    public static NotMatcher Not(ILMatcher matcher) => new(matcher);
-
-    public static OpcodeMatcher Opcode(OpCode opcode) => new(opcode);
-    public static OpcodesMatcher Opcodes(params OpCode[] opcodes) => new(opcodes);
-    public static OpcodeOperandMatcher OpcodeOperand(OpCode opcode, object operand) => new(opcode, operand);
-    public static InstructionMatcher Instruction(CodeInstruction instruction) => new(instruction);
-
-    public static LdargMatcher Ldarg(int? arg = null) => new(arg);
-    public static LdlocMatcher Ldloc(int? loc = null) => new(loc);
-    public static StlocMatcher Stloc(int? loc = null) => new(loc);
-    public static LdcI32Matcher Ldc(int? value = null) => new(value);
-
-    public static BranchMatcher Branch() => new();
-
-    public static OpcodeOperandMatcher Ldfld(FieldInfo field)
+    public ILMatcher CaptureAs(out CodeInstruction variable)
     {
-        if (field == null)
-            PathfindingLibPlugin.Instance.Logger.LogWarning($"Field passed to ILMatcher.Ldfld() was null\n{new StackTrace()}");
-        return new(OpCodes.Ldfld, field);
-    }
-    public static OpcodeOperandMatcher Ldsfld(FieldInfo field)
-    {
-        if (field == null)
-            PathfindingLibPlugin.Instance.Logger.LogWarning($"Field passed to ILMatcher.Ldsfld() was null\n{new StackTrace()}");
-        return new(OpCodes.Ldsfld, field);
-    }
-    public static OpcodeOperandMatcher Stfld(FieldInfo field)
-    {
-        if (field == null)
-            PathfindingLibPlugin.Instance.Logger.LogWarning($"Field passed to ILMatcher.Stfld() was null\n{new StackTrace()}");
-        return new(OpCodes.Stfld, field);
-    }
-    public static OpcodeOperandMatcher Stsfld(FieldInfo field)
-    {
-        if (field == null)
-            PathfindingLibPlugin.Instance.Logger.LogWarning($"Field passed to ILMatcher.Stsfld() was null\n{new StackTrace()}");
-        return new(OpCodes.Stsfld, field);
+        variable = new CodeInstruction(OpCodes.Nop, null);
+        return new InstructionCapturingMatcher(this, variable);
     }
 
-    public static OpcodeOperandMatcher Callvirt(MethodBase method)
+    public unsafe ILMatcher CaptureOperandAs<T>(out T operand) where T : unmanaged
+    {
+        operand = default;
+        fixed (T* operandPtr = &operand)
+        {
+            return new OperandCapturingMatcher<T>(this, operandPtr);
+        }
+    }
+
+    public ILMatcher Debug()
+    {
+        return new DebuggingMatcher(this);
+    }
+
+    public static ILMatcher Not(ILMatcher matcher) => new NotMatcher(matcher);
+
+    public static ILMatcher Opcode(OpCode opcode) => new OpcodeMatcher(opcode);
+    public static ILMatcher Opcodes(params OpCode[] opcodes) => new OpcodesMatcher(opcodes);
+    public static ILMatcher OpcodeOperand(OpCode opcode, object operand) => new OpcodeOperandMatcher(opcode, operand);
+    public static ILMatcher Instruction(CodeInstruction instruction) => new InstructionMatcher(instruction);
+
+    public static ILMatcher Ldarg(int? arg = null) => new LdargMatcher(arg);
+    public static ILMatcher Ldloc(int? loc = null) => new LdlocMatcher(loc);
+    public static ILMatcher Stloc(int? loc = null) => new StlocMatcher(loc);
+    public static ILMatcher Ldc(int? value = null) => new LdcI32Matcher(value);
+    public static ILMatcher LdcF32(float? value = null) => new LdcF32Matcher(value);
+
+    public static ILMatcher Branch() => new BranchMatcher();
+
+    public static ILMatcher Ldfld(FieldInfo field, [CallerMemberName] string callerName = "", [CallerFilePath] string sourceFilePath = "", [CallerLineNumber] int sourceLineNumber = 0)
+    {
+        if (field == null)
+            PathfindingLibPlugin.Instance.Logger.LogWarning($"Field passed to ILMatcher.Ldfld() was null at {sourceFilePath}#{sourceLineNumber} ({callerName})");
+        return new OpcodeOperandMatcher(OpCodes.Ldfld, field);
+    }
+    public static ILMatcher Ldsfld(FieldInfo field, [CallerMemberName] string callerName = "", [CallerFilePath] string sourceFilePath = "", [CallerLineNumber] int sourceLineNumber = 0)
+    {
+        if (field == null)
+            PathfindingLibPlugin.Instance.Logger.LogWarning($"Field passed to ILMatcher.Ldsfld() was null at {sourceFilePath}#{sourceLineNumber} ({callerName})");
+        return new OpcodeOperandMatcher(OpCodes.Ldsfld, field);
+    }
+    public static ILMatcher Stfld(FieldInfo field, [CallerMemberName] string callerName = "", [CallerFilePath] string sourceFilePath = "", [CallerLineNumber] int sourceLineNumber = 0)
+    {
+        if (field == null)
+            PathfindingLibPlugin.Instance.Logger.LogWarning($"Field passed to ILMatcher.Stfld() was null at {sourceFilePath}#{sourceLineNumber} ({callerName})");
+        return new OpcodeOperandMatcher(OpCodes.Stfld, field);
+    }
+    public static ILMatcher Stsfld(FieldInfo field, [CallerMemberName] string callerName = "", [CallerFilePath] string sourceFilePath = "", [CallerLineNumber] int sourceLineNumber = 0)
+    {
+        if (field == null)
+            PathfindingLibPlugin.Instance.Logger.LogWarning($"Field passed to ILMatcher.Stsfld() was null at {sourceFilePath}#{sourceLineNumber} ({callerName})");
+        return new OpcodeOperandMatcher(OpCodes.Stsfld, field);
+    }
+
+    public static ILMatcher Callvirt(MethodBase method, [CallerMemberName] string callerName = "", [CallerFilePath] string sourceFilePath = "", [CallerLineNumber] int sourceLineNumber = 0)
     {
         if (method == null)
-            PathfindingLibPlugin.Instance.Logger.LogWarning($"Method passed to ILMatcher.Callvirt() was null\n{new StackTrace()}");
+            PathfindingLibPlugin.Instance.Logger.LogWarning($"Method passed to ILMatcher.Callvirt() was null at {sourceFilePath}#{sourceLineNumber} ({callerName})");
         return OpcodeOperand(OpCodes.Callvirt, method);
     }
-    public static OpcodeOperandMatcher Call(MethodBase method)
+    public static ILMatcher Call(MethodBase method, [CallerMemberName] string callerName = "", [CallerFilePath] string sourceFilePath = "", [CallerLineNumber] int sourceLineNumber = 0)
     {
         if (method == null)
-            PathfindingLibPlugin.Instance.Logger.LogWarning($"Method passed to ILMatcher.Call() was null\n{new StackTrace()}");
+            PathfindingLibPlugin.Instance.Logger.LogWarning($"Method passed to ILMatcher.Call() was null at {sourceFilePath}#{sourceLineNumber} ({callerName})");
         return OpcodeOperand(OpCodes.Call, method);
     }
 
-    public static PredicateMatcher Predicate(Func<CodeInstruction, bool> predicate) => new(predicate);
-    public static PredicateMatcher Predicate(Func<FieldInfo, bool> predicate)
+    public static ILMatcher Predicate(Func<CodeInstruction, bool> predicate) => new PredicateMatcher(predicate);
+    public static ILMatcher Predicate(Func<FieldInfo, bool> predicate)
     {
-        return new(insn =>
+        return new PredicateMatcher(insn =>
         {
             if (insn.operand is not FieldInfo field)
                 return false;
@@ -153,7 +174,14 @@ internal class LdcI32Matcher(int? value) : ILMatcher
 {
     private readonly int? value = value;
 
-    public bool Matches(CodeInstruction instruction) => (!value.HasValue && instruction.GetLdcI32().HasValue) || instruction.GetLdcI32() == value;
+    public bool Matches(CodeInstruction instruction) => value.HasValue ? instruction.GetLdcI32() == value : instruction.GetLdcI32().HasValue;
+}
+
+internal class LdcF32Matcher(float? value) : ILMatcher
+{
+    private readonly float? value = value;
+
+    public bool Matches(CodeInstruction instruction) => instruction.opcode == OpCodes.Ldc_R4 && (!value.HasValue || (float)instruction.operand == value.Value);
 }
 
 internal class BranchMatcher : ILMatcher
@@ -166,4 +194,50 @@ internal class PredicateMatcher(Func<CodeInstruction, bool> predicate) : ILMatch
     private readonly Func<CodeInstruction, bool> predicate = predicate;
 
     public bool Matches(CodeInstruction instruction) => predicate(instruction);
+}
+
+internal class InstructionCapturingMatcher(ILMatcher matcher, CodeInstruction variable) : ILMatcher
+{
+    private readonly ILMatcher matcher = matcher;
+    private readonly CodeInstruction variable = variable;
+
+    public bool Matches(CodeInstruction instruction)
+    {
+        var isMatch = matcher.Matches(instruction);
+        if (isMatch)
+        {
+            variable.opcode = instruction.opcode;
+            variable.operand = instruction.operand;
+            variable.blocks = [.. instruction.blocks];
+            variable.labels = [.. instruction.labels];
+        }
+        return isMatch;
+    }
+}
+
+internal unsafe class OperandCapturingMatcher<T>(ILMatcher matcher, T* operand) : ILMatcher where T : unmanaged
+{
+    private readonly ILMatcher matcher = matcher;
+    private readonly T* operand = operand;
+
+    public bool Matches(CodeInstruction instruction)
+    {
+        var isMatch = matcher.Matches(instruction);
+        if (isMatch)
+            *operand = (T)instruction.operand;
+        return isMatch;
+    }
+}
+
+internal class DebuggingMatcher(ILMatcher matcher) : ILMatcher
+{
+    private readonly ILMatcher matcher = matcher;
+
+    public bool Matches(CodeInstruction instruction)
+    {
+        var isMatch = matcher.Matches(instruction);
+        if (isMatch)
+            PathfindingLibPlugin.Instance.Logger.LogInfo($"{matcher} matched {instruction}");
+        return isMatch;
+    }
 }

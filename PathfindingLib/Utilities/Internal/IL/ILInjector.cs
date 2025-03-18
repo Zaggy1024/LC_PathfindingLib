@@ -19,6 +19,12 @@ internal class ILInjector(IEnumerable<CodeInstruction> instructions, ILGenerator
 
     private int matchEnd = -1;
 
+    public int Index
+    {
+        get => index;
+        set => index = value;
+    }
+
     public ILInjector GoToStart()
     {
         matchEnd = index;
@@ -119,7 +125,7 @@ internal class ILInjector(IEnumerable<CodeInstruction> instructions, ILGenerator
             stackPosition += instruction.PushCount();
             stackPosition -= instruction.PopCount();
 
-            if (stackPosition > popIndex)
+            if (stackPosition >= popIndex)
                 return this;
 
             index--;
@@ -141,7 +147,10 @@ internal class ILInjector(IEnumerable<CodeInstruction> instructions, ILGenerator
 
     public ILInjector FindLabel(Label label)
     {
-        matchEnd = index + 1;
+        if (label == default)
+            return this;
+
+        matchEnd = index;
 
         for (index = 0; index < instructions.Count; index++)
         {
@@ -224,7 +233,7 @@ internal class ILInjector(IEnumerable<CodeInstruction> instructions, ILGenerator
         return instructions[offsetIndex];
     }
 
-    public void SetRelativeInstruction(int offset, CodeInstruction instruction)
+    public ILInjector SetRelativeInstruction(int offset, CodeInstruction instruction)
     {
         if (!IsValid)
             throw new InvalidOperationException(INVALID);
@@ -233,6 +242,7 @@ internal class ILInjector(IEnumerable<CodeInstruction> instructions, ILGenerator
         if (!IsIndexInRange(offsetIndex))
             throw new IndexOutOfRangeException($"Offset {offset} would write out of bounds at index {offsetIndex}");
         instructions[offsetIndex] = instruction;
+        return this;
     }
 
     public IEnumerable<CodeInstruction> GetRelativeInstructions(int offset, int size)
@@ -273,18 +283,24 @@ internal class ILInjector(IEnumerable<CodeInstruction> instructions, ILGenerator
         return instructions.GetRange(start, size);
     }
 
-    public Label AddLabel()
+    public ILInjector DefineLabel(out Label label)
     {
         if (generator == null)
             throw new InvalidOperationException("No ILGenerator was provided");
 
-        var label = generator.DefineLabel();
-        Instruction.labels.Add(label);
-        return label;
+        label = generator.DefineLabel();
+        return this;
+    }
+
+    public ILInjector AddLabel(out Label label)
+    {
+        DefineLabel(out label);
+        return AddLabel(label);
     }
 
     public ILInjector AddLabel(Label label)
     {
+        Instruction = new(Instruction);
         Instruction.labels.Add(label);
         return this;
     }
@@ -313,9 +329,12 @@ internal class ILInjector(IEnumerable<CodeInstruction> instructions, ILGenerator
             throw new InvalidOperationException(INVALID);
 
         var labels = Instruction.labels;
+        Instruction = new(Instruction);
+        Instruction.labels.Clear();
+
         this.instructions.InsertRange(index, instructions);
         Instruction.labels.AddRange(labels);
-        labels.Clear();
+
         if (matchEnd >= index)
             matchEnd += instructions.Length;
         return this;
@@ -355,16 +374,26 @@ internal class ILInjector(IEnumerable<CodeInstruction> instructions, ILGenerator
     public ILInjector RemoveLastMatch()
     {
         GetLastMatchRange(out var start, out var size);
+        var labels = instructions[start].labels;
         instructions.RemoveRange(start, size);
         index = start;
         matchEnd = start;
+        instructions[start].labels.AddRange(labels);
         return this;
     }
 
-    public ILInjector ReplaceLastMatch(params CodeInstruction[] instructions)
+    public ILInjector ReplaceLastMatch(params CodeInstruction[] replacementInstructions)
     {
-        RemoveLastMatch();
-        Insert(instructions);
+        if (replacementInstructions.Length == 0)
+            throw new ArgumentException("Cannot replace a match with an empty array.");
+
+        GetLastMatchRange(out var start, out var size);
+        var labels = instructions[start].labels;
+        instructions.RemoveRange(start, size);
+        instructions.InsertRange(start, replacementInstructions);
+        index = start;
+        matchEnd = start + replacementInstructions.Length;
+        instructions[start].labels.AddRange(labels);
         return this;
     }
 
