@@ -1,9 +1,8 @@
-﻿using PathfindingLib.API.Smart;
-using PathfindingLib.Jobs;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
-using Unity.Collections;
 using UnityEngine;
+
+using PathfindingLib.API.Smart;
 
 namespace PathfindingLib.Utilities;
 
@@ -32,7 +31,7 @@ internal static class SmartPathLinks
     {
         if (!linkLookup.TryGetValue(teleport.entrancePoint, out var node))
         {
-            PathfindingLibPlugin.Instance.Logger.LogWarning($"Attempted to remove {teleport} from smart pathfinding data without it being present.");
+            PathfindingLibPlugin.Instance.Logger.LogWarning($"Attempted to remove {teleport} from smart pathfinding data while it was not present.");
             return;
         }
 

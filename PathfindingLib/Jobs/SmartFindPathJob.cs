@@ -1,4 +1,6 @@
-﻿using System;
+﻿//#define SMART_PATHFINDING_DEBUG
+
+using System;
 using System.Collections.Generic;
 
 using Unity.Collections;
@@ -7,20 +9,18 @@ using Unity.Jobs;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.Experimental.AI;
+
 using PathfindingLib.API;
 using PathfindingLib.API.SmartPathfinding;
 using PathfindingLib.Utilities;
 using PathfindingLib.Utilities.Collections;
-using System.IO;
-using System.Text;
-using System.Diagnostics;
-
-
-
-
 
 #if BENCHMARKING
 using Unity.Profiling;
+#endif
+
+#if SMART_PATHFINDING_DEBUG
+using System.Text;
 #endif
 
 namespace PathfindingLib.Jobs;
@@ -142,7 +142,9 @@ public struct SmartFindPathJob : IJob, IDisposable
         internal Vector3 origin;
         internal int destination;
 
-        internal UnsafeList<int> path;
+#if SMART_PATHFINDING_DEBUG
+        internal NativeArray<int> path;
+#endif
 
         internal PathFrame(int rootNode, Vector3 origin)
         {
@@ -151,7 +153,10 @@ public struct SmartFindPathJob : IJob, IDisposable
 
             destination = rootNode;
 
-            path = new UnsafeList<int>(4, Allocator.Temp, NativeArrayOptions.UninitializedMemory) { rootNode };
+#if SMART_PATHFINDING_DEBUG
+            path = new NativeArray<int>(1, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+            path[0] = rootNode;
+#endif
         }
 
         internal readonly PathFrame Extend(float segmentLength, Vector3 newOrigin, int newDestination)
@@ -163,10 +168,15 @@ public struct SmartFindPathJob : IJob, IDisposable
                 destination = newDestination,
                 length = length + segmentLength,
                 segmentCount = segmentCount + 1,
-                path = new UnsafeList<int>(path.Length + 1, Allocator.Temp, NativeArrayOptions.UninitializedMemory),
+#if SMART_PATHFINDING_DEBUG
+                path = new NativeArray<int>(path.Length + 1, Allocator.Temp, NativeArrayOptions.UninitializedMemory),
+#endif
             };
-            result.path.AddRange(path);
-            result.path.Add(newDestination);
+
+#if SMART_PATHFINDING_DEBUG
+            NativeArray<int>.Copy(path, result.path, path.Length);
+            result.path[^1] = newDestination;
+#endif
             return result;
         }
     }
@@ -175,16 +185,18 @@ public struct SmartFindPathJob : IJob, IDisposable
     {
         public readonly int Compare(PathFrame a, PathFrame b)
         {
-            var lengthComparison = Comparer<float>.Default.Compare(a.length, b.length);
-            if (lengthComparison != 0)
-            {
-                var delta = Math.Abs(a.length - b.length);
-                if (delta < 0.0001f)
-                    PathfindingLibPlugin.Instance.Logger.LogInfo($"Delta is very small: {delta}");
-                return lengthComparison;
-            }
-            return Comparer<int>.Default.Compare(a.segmentCount, b.segmentCount);
+            if (Mathf.Approximately(a.length, b.length))
+                return Comparer<int>.Default.Compare(a.segmentCount, b.segmentCount);
+
+            return Comparer<float>.Default.Compare(a.length, b.length);
         }
+    }
+
+    private Vector3 GetDestinationAtIndex(int index)
+    {
+        if (index == linkCount)
+            return destination;
+        return linkOrigins[index];
     }
 
     private int CalculatePath()
@@ -206,28 +218,32 @@ public struct SmartFindPathJob : IJob, IDisposable
         while (heap.TryPop(out PathFrame currentFrame))
         {
             // Skip paths that cannot be shorter than the current shortest path.
-            if (currentFrame.length > shortestLength)
+            if (Mathf.Approximately(currentFrame.length, shortestLength) && currentFrame.segmentCount >= shortestSegmentCount)
                 continue;
-            if (currentFrame.length == shortestLength && currentFrame.segmentCount >= shortestSegmentCount)
+            if (currentFrame.length >= shortestLength)
                 continue;
             if (currentFrame.segmentCount > linkCount)
                 continue;
 
+#if SMART_PATHFINDING_DEBUG
             PathfindingLibPlugin.Instance.Logger.LogInfo($"Current frame (depth {currentFrame.segmentCount}, length {currentFrame.length}) destination: {currentFrame.destination} ({(currentFrame.destination < linkCount ? SmartPathJobDataContainer.linkNames[currentFrame.destination] : "destination")})");
+#endif
 
-            var destinationPosition = destination;
-            if (currentFrame.destination < linkCount)
-                destinationPosition = linkOrigins[currentFrame.destination];
+            var destinationPosition = GetDestinationAtIndex(currentFrame.destination);
 
             // Get the length of the path to the current link or the final destination.
             var segmentLength = CalculateSinglePath(currentFrame.origin, destinationPosition);
             if (float.IsPositiveInfinity(segmentLength))
             {
-                PathfindingLibPlugin.Instance.Logger.LogInfo($"Path from {currentFrame.origin} to {destinationPosition} failed");
+#if SMART_PATHFINDING_DEBUG
+                PathfindingLibPlugin.Instance.Logger.LogInfo($"  Path from {currentFrame.origin} to {destinationPosition} failed");
+#endif
                 continue;
             }
 
-            PathfindingLibPlugin.Instance.Logger.LogInfo($"Path from {currentFrame.origin} to {destinationPosition} has length {segmentLength}");
+#if SMART_PATHFINDING_DEBUG
+            PathfindingLibPlugin.Instance.Logger.LogInfo($"  Path from {currentFrame.origin} to {destinationPosition} has length {segmentLength}");
+#endif
 
             // If we found a direct path that is shorter than the current shortest, replace it with the current one.
             var newLength = currentFrame.length + segmentLength;
@@ -235,16 +251,17 @@ public struct SmartFindPathJob : IJob, IDisposable
 
             if (currentFrame.destination == linkCount)
             {
-                if (newLength > shortestLength)
+                if (Mathf.Approximately(newLength, shortestLength) && newSegmentCount >= shortestSegmentCount)
                     continue;
-                if (newLength == shortestLength && newSegmentCount >= shortestSegmentCount)
+                if (newLength >= shortestLength)
                     continue;
                 shortestLength = newLength;
                 shortestSegmentCount = newSegmentCount;
                 shortestPath = currentFrame.rootNode;
 
+#if SMART_PATHFINDING_DEBUG
                 var debugStr = new StringBuilder(256);
-                debugStr.AppendFormat("Found path of length {0:.###} ({1} segments)\n", newLength, currentFrame.segmentCount);
+                debugStr.AppendFormat("  Found path of length {0:.###} ({1} segments)\n", newLength, currentFrame.segmentCount);
                 foreach (var linkID in currentFrame.path)
                 {
                     debugStr.Append(" - ");
@@ -255,18 +272,34 @@ public struct SmartFindPathJob : IJob, IDisposable
                     debugStr.Append('\n');
                 }
                 PathfindingLibPlugin.Instance.Logger.LogInfo(debugStr);
+#endif
                 continue;
             }
 
             // Again, insert the direct destination and all links to recurse.
             var linkDestinationSlice = linkDestinationSlices[currentFrame.destination];
 
-            foreach (var linkDestination in linkDestinations.GetSubArray(linkDestinationSlice.index, linkDestinationSlice.size))
+            for (var linkDestinationSliceIndex = 0; linkDestinationSliceIndex < linkDestinationSlice.size; linkDestinationSliceIndex++)
             {
-                heap.Insert(currentFrame.Extend(segmentLength, linkDestination, linkCount));
+                var linkDestinationIndex = linkDestinationSlice.index + linkDestinationSliceIndex;
+                var linkDestination = linkDestinations[linkDestinationIndex];
+                var directPathFrame = currentFrame.Extend(segmentLength, linkDestination, linkCount);
+                heap.Insert(directPathFrame);
+
+#if SMART_PATHFINDING_DEBUG
+                PathfindingLibPlugin.Instance.Logger.LogInfo($"    Link leads to {linkDestinationIndex} ({linkDestination})");
+                PathfindingLibPlugin.Instance.Logger.LogInfo($"    - Added direct path frame with length {directPathFrame.length}");
+#endif
 
                 for (var i = 0; i < linkCount; i++)
-                    heap.Insert(currentFrame.Extend(segmentLength, linkDestination, i));
+                {
+                    var linkPathFrame = currentFrame.Extend(segmentLength, linkDestination, i);
+                    heap.Insert(linkPathFrame);
+
+#if SMART_PATHFINDING_DEBUG
+                    PathfindingLibPlugin.Instance.Logger.LogInfo($"    - Added link path frame to {i} ({SmartPathJobDataContainer.linkNames[i]}) with length {linkPathFrame.length}");
+#endif
+                }
             }
         }
 
@@ -275,14 +308,21 @@ public struct SmartFindPathJob : IJob, IDisposable
 
     public void Execute()
     {
-        PathfindingLibPlugin.Instance.Logger.LogInfo($"Start --------");
+#if SMART_PATHFINDING_DEBUG
+        PathfindingLibPlugin.Instance.Logger.LogInfo($"Start {origin} -> {destination} --------");
+#endif
+
         var result = CalculatePath();
+
+#if SMART_PATHFINDING_DEBUG
         if (result == -1)
             PathfindingLibPlugin.Instance.Logger.LogInfo($"Path failed");
         else if (result == linkCount)
             PathfindingLibPlugin.Instance.Logger.LogInfo($"Completed direct path");
         else
             PathfindingLibPlugin.Instance.Logger.LogInfo($"Completed path with index {result} ({SmartPathJobDataContainer.linkNames[result]})");
+#endif
+
         destinationIndex[0] = result;
     }
 

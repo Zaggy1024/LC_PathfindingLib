@@ -1,14 +1,14 @@
-﻿using HarmonyLib;
+﻿using System.Collections.Generic;
+
+using HarmonyLib;
 using Unity.Netcode;
 
 using PathfindingLib.Utilities;
-using System.Collections.Generic;
 
 namespace PathfindingLib.Patches;
 
 internal static class PatchEntranceTeleport
 {
-    internal static HashSet<EntranceTeleport> unconnectedEntranceTeleports = [];
     internal static List<EntranceTeleport> allEntranceTeleports = [];
 
     [HarmonyPostfix]
@@ -16,25 +16,6 @@ internal static class PatchEntranceTeleport
     private static void AwakePostfix(EntranceTeleport __instance)
     {
         allEntranceTeleports.Add(__instance);
-        unconnectedEntranceTeleports.Add(__instance);
-    }
-
-    [HarmonyPostfix]
-    [HarmonyPatch(typeof(EntranceTeleport), nameof(EntranceTeleport.Update))]
-    private static void UpdatePostfix(EntranceTeleport __instance)
-    {
-        if (!unconnectedEntranceTeleports.Contains(__instance))
-            return;
-
-        foreach (var otherTeleport in allEntranceTeleports)
-        {
-            if (otherTeleport.entranceId == __instance.entranceId && otherTeleport.isEntranceToBuilding != __instance.isEntranceToBuilding)
-            {
-                SmartPathLinks.RegisterEntranceTeleport(__instance, otherTeleport.entrancePoint);
-                unconnectedEntranceTeleports.Remove(__instance);
-                break;
-            }
-        }
     }
 
     [HarmonyPostfix]
@@ -45,7 +26,32 @@ internal static class PatchEntranceTeleport
             return;
 
         allEntranceTeleports.Remove(teleport);
-        unconnectedEntranceTeleports.Remove(teleport);
         SmartPathLinks.UnregisterEntranceTeleport(teleport);
+    }
+
+    [HarmonyPostfix]
+    [HarmonyPatch(typeof(RoundManager), nameof(RoundManager.SetExitIDs))]
+    private static void SetExitIDsPostfix()
+    {
+        //PathfindingLibPlugin.Instance.Logger.LogInfo($"SetExitIDsPostfix");
+        foreach (var teleport in allEntranceTeleports)
+        {
+            if (!teleport.isActiveAndEnabled)
+                continue;
+
+            foreach (var otherTeleport in allEntranceTeleports)
+            {
+                if (!otherTeleport.isActiveAndEnabled)
+                    continue;
+                if (teleport.entranceId != otherTeleport.entranceId)
+                    continue;
+                if (teleport.isEntranceToBuilding == otherTeleport.isEntranceToBuilding)
+                    continue;
+
+                //PathfindingLibPlugin.Instance.Logger.LogInfo($"{teleport} ({teleport.GetInstanceID()}) connects to {teleport} ({teleport.GetInstanceID()})");
+                SmartPathLinks.RegisterEntranceTeleport(teleport, otherTeleport.entrancePoint);
+                break;
+            }
+        }
     }
 }
