@@ -10,8 +10,6 @@ using UnityEngine.Experimental.AI;
 using PathfindingLib.Utilities;
 using PathfindingLib.API;
 
-using NavMeshReadLocker = PathfindingLib.Utilities.NavMeshReadLocker;
-
 #if BENCHMARKING
 using Unity.Profiling;
 #endif
@@ -20,11 +18,6 @@ namespace PathfindingLib.Jobs;
 
 public struct FindPathJob : IJob, IDisposable
 {
-    // Hardcoded values derived from vanilla Lethal Company enemies. Should these be exposed? Hopefully not necessary.
-    private const float MaximumOriginDistance = 5;
-    private const float MaximumEndpointDistance = 1.5f;
-    private const float MaximumEndpointDistanceSquared = MaximumEndpointDistance * MaximumEndpointDistance;
-
     [ReadOnly, NativeDisableContainerSafetyRestriction] private NativeArray<NavMeshQuery> ThreadQueriesRef;
 
     [ReadOnly] private int AgentTypeID;
@@ -104,8 +97,7 @@ public struct FindPathJob : IJob, IDisposable
         using var markerAuto = new TogglableProfilerAuto(in FindPathMarker);
 #endif
 
-        var originExtents = new Vector3(MaximumOriginDistance, MaximumOriginDistance, MaximumOriginDistance);
-        var origin = query.MapLocation(Origin, originExtents, AgentTypeID, AreaMask);
+        var origin = query.MapLocation(Origin, SharedJobValues.OriginExtents, AgentTypeID, AreaMask);
 
         if (!query.IsValid(origin.polygon))
         {
@@ -113,7 +105,7 @@ public struct FindPathJob : IJob, IDisposable
             return;
         }
 
-        var destinationExtents = new Vector3(MaximumEndpointDistance, MaximumEndpointDistance, MaximumEndpointDistance);
+        var destinationExtents = SharedJobValues.DestinationExtents;
         var destinationLocation = query.MapLocation(Destination, destinationExtents, AgentTypeID, AreaMask);
         if (!query.IsValid(destinationLocation))
         {
@@ -171,7 +163,7 @@ public struct FindPathJob : IJob, IDisposable
         // Check if the end of the path is close enough to the target.
         var endPosition = path[pathSize - 1].position;
         var endDistance = (endPosition - Destination).sqrMagnitude;
-        if (endDistance > MaximumEndpointDistanceSquared)
+        if (endDistance > SharedJobValues.MaximumEndpointDistanceSquared)
         {
             Status[0] = PathQueryStatus.Failure;
             return;

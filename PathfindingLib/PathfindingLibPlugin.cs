@@ -28,6 +28,10 @@ public class PathfindingLibPlugin : BaseUnityPlugin
         ApplyAllNativePatches();
 
         harmony.PatchAll(typeof(PatchNavMeshSurface));
+        harmony.PatchAll(typeof(PatchEntranceTeleport));
+
+
+        harmony.PatchAll(typeof(PatchMaskedPlayerEnemy));
     }
 
     private static ProcessModule GetUnityPlayerModule()
