@@ -3,7 +3,6 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
-
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
@@ -32,6 +31,11 @@ public struct SmartFindPathJob : IJob, IDisposable
 {
     private const int MaxExtraIterations = 30;
 
+#if SMART_PATHFINDING_DEBUG
+    private static bool DebugVertices;
+    private static PathVertex[] _previousVertices;
+#endif
+
     [ReadOnly, NativeDisableContainerSafetyRestriction] private NativeArray<NavMeshQuery> ThreadQueriesRef;
 
     [ReadOnly] private int agentTypeID;
@@ -43,7 +47,11 @@ public struct SmartFindPathJob : IJob, IDisposable
     [ReadOnly, NativeDisableParallelForRestriction] private NativeArray<Vector3> linkDestinations;
     [ReadOnly] private int linkCount;
     [ReadOnly] private int destinationCount;
-    [ReadOnly] private int nodeCount;
+
+    [ReadOnly] private int vertexCount;
+    [ReadOnly] private int startIndex;
+    [ReadOnly] private int goalIndex;
+
 
     [ReadOnly, NativeSetThreadIndex] private int threadIndex;
 
@@ -64,11 +72,15 @@ public struct SmartFindPathJob : IJob, IDisposable
         linkOrigins = data.linkOrigins;
         linkDestinationSlices = data.linkDestinationSlices;
         linkDestinations = data.linkDestinations;
+
         linkCount = data.linkCount;
         destinationCount = data.destinationCount;
-        nodeCount = linkCount + destinationCount + 2;
 
-        destinationIndex = new(1, Allocator.Persistent);
+        vertexCount = linkCount + destinationCount + 2;
+        startIndex = vertexCount - 2;
+        goalIndex = vertexCount - 1;
+
+        destinationIndex = new NativeArray<int>(1, Allocator.Persistent);
         destinationIndex[0] = -1;
     }
 
@@ -143,101 +155,173 @@ public struct SmartFindPathJob : IJob, IDisposable
         return distance;
     }
 
-    private struct PathNode: IDisposable
+    private record PathLink(int index, float cost)
     {
-        internal List<(int index, float cost)> pred;
-        internal List<(int index, float cost)> succ;
+        internal int index = index;
+        internal float cost = cost;
 
-        internal float heuristic = float.PositiveInfinity;
-        internal float g = float.PositiveInfinity;
-        internal float rhs = float.PositiveInfinity;
-
-        public PathNode()
+#if SMART_PATHFINDING_DEBUG
+        public override string ToString()
         {
-            pred = ListPool<(int index, float cost)>.Get();
-            pred.Clear();
-            succ = ListPool<(int index, float cost)>.Get();
-            succ.Clear();
+            return $"{index} {nameof(cost)}:{cost:0.###}";
+        }
+#endif
+    }
+
+    private struct PathVertex: IDisposable
+    {
+        internal bool isValid;
+        internal List<PathLink> pred;
+        internal List<PathLink> succ;
+
+        internal int index;
+
+        internal float heuristic;
+        internal float g;
+        internal float rhs;
+
+        // ReSharper disable once ParameterHidesMember
+        public void Initialize(int index)
+        {
+            if (isValid)
+                Dispose();
+
+            this.pred = ListPool<PathLink>.Get();
+            this.pred.Clear();
+            this.succ = ListPool<PathLink>.Get();
+            this.succ.Clear();
+
+            this.index = index;
+
+            this.heuristic = float.PositiveInfinity;
+            this.g = float.PositiveInfinity;
+            this.rhs = float.PositiveInfinity;
+
+            isValid = true;
         }
 
         public void Dispose()
         {
-            ListPool<(int index, float cost)>.Release(pred);
+            isValid = false;
+            ListPool<PathLink>.Release(pred);
             pred = null;
-            ListPool<(int index, float cost)>.Release(succ);
+            ListPool<PathLink>.Release(succ);
             succ = null;
             heuristic = float.NaN;
             g = float.NaN;
             rhs = float.NaN;
         }
 
-        internal struct NodeKey : IComparable<NodeKey>
+        internal record VertexKey(float key1, float key2) : IComparable<VertexKey>
         {
-            internal readonly float key1;
-            internal readonly float key2;
+            private readonly float key1 = key1;
+            private readonly float key2 = key2;
 
-            public NodeKey(float key1, float key2)
-            {
-                this.key1 = key1;
-                this.key2 = key2;
-            }
-
-            public int CompareTo(NodeKey other)
+            public int CompareTo(VertexKey other)
             {
                 var key1Comparison = key1.CompareTo(other.key1);
                 return key1Comparison != 0 ? key1Comparison : key2.CompareTo(other.key2);
             }
 
-            public static bool operator <(NodeKey left, NodeKey right)
+            public static bool operator <(VertexKey left, VertexKey right)
             {
                 return left.CompareTo(right) < 0;
             }
 
-            public static bool operator >(NodeKey left, NodeKey right)
+            public static bool operator >(VertexKey left, VertexKey right)
             {
                 return left.CompareTo(right) > 0;
             }
 
-            public static bool operator <=(NodeKey left, NodeKey right)
+            public static bool operator <=(VertexKey left, VertexKey right)
             {
                 return left.CompareTo(right) <= 0;
             }
 
-            public static bool operator >=(NodeKey left, NodeKey right)
+            public static bool operator >=(VertexKey left, VertexKey right)
             {
                 return left.CompareTo(right) >= 0;
             }
+
+#if SMART_PATHFINDING_DEBUG
+            public override string ToString()
+            {
+                return $"[{key1:0.###}, {key2:0.###}]";
+            }
+#endif
         }
 
-        public readonly NodeKey CalculateKey()
+        public readonly VertexKey CalculateKey()
         {
             var key2 = Mathf.Min(g, rhs);
             var key1 = key2 + heuristic;
 
-            return new NodeKey(key1, key2);
+            return new VertexKey(key1, key2);
+        }
+
+#if SMART_PATHFINDING_DEBUG
+        public override string ToString()
+        {
+            if (!isValid)
+                return "Destroyed";
+            return $"{nameof(index)}: {index}, {nameof(g)}: {g:0.###}, {nameof(rhs)}: {rhs:0.###}";
+        }
+#endif
+    }
+
+    private struct HeapElementComparer : IComparer<(int index, PathVertex.VertexKey key)>
+    {
+        public int Compare((int index, PathVertex.VertexKey key) x, (int index, PathVertex.VertexKey key) y)
+        {
+            return x.Item2.CompareTo(y.Item2);
         }
     }
 
-    private void PrepareData(PathNode[] nodes)
+    private Vector3 GetVertexPosition(ref PathVertex vertex)
     {
-        for (var i = 0; i < nodeCount; i++)
+        if (!vertex.isValid)
+            return default;
+        return GetVertexPosition(vertex.index);
+    }
+
+    private Vector3 GetVertexPosition(int vertexIndex)
+    {
+        if (vertexIndex < 0)
+            throw new IndexOutOfRangeException("index cannot be negative");
+
+        if (vertexIndex < linkCount)
+            return linkOrigins[vertexIndex];
+
+        if (vertexIndex < linkCount + destinationCount)
+            return linkDestinations[vertexIndex - linkCount];
+
+        if (vertexIndex == startIndex)
+            return start;
+
+        if (vertexIndex == goalIndex)
+            return goal;
+
+        throw new IndexOutOfRangeException($"ïndex {vertexIndex} is otu of range");
+    }
+
+    private void PopulateVertices(PathVertex[] pathVertices)
+    {
+        for (var i = 0; i < vertexCount; i++)
         {
-            nodes[i] = new PathNode();
+            ref var vertex = ref pathVertices[i];
+            vertex.Initialize(i);
         }
 
-        var startIndex = nodeCount - 2;
-        var goalIndex = nodeCount - 1;
-        ref var startNode = ref nodes[startIndex];
-        ref var goalNode = ref nodes[goalIndex];
+        ref var goalVertex = ref pathVertices[goalIndex];
 
-        for (var i = 0; i < nodeCount; i++)
+        for (var i = 0; i < vertexCount; i++)
         {
-            ref var node = ref nodes[i];
+            ref var vertex = ref pathVertices[i];
+            var vertexPosition = GetVertexPosition(i);
 
             if (i < linkCount) //if this index is an origin
             {
-                var nodePosition = linkOrigins[i];
-                node.heuristic = (nodePosition - start).magnitude;
+                vertex.heuristic = (vertexPosition - start).magnitude;
 
                 //connect all its destinations
 
@@ -250,56 +334,54 @@ public struct SmartFindPathJob : IJob, IDisposable
                     //TODO add costs! it's important the cost is never 0 or less
                     var traverseCost = 0.0001f;
 
-                    ref var destinationNode = ref nodes[destIndex];
+                    ref var destinationVertex = ref pathVertices[destIndex];
 
-                    destinationNode.pred.Add((i, traverseCost));
-                    node.succ.Add((destIndex, traverseCost));
+                    destinationVertex.pred.Add(new PathLink(i, traverseCost));
+                    vertex.succ.Add(new PathLink(destIndex, traverseCost));
                 }
 
             }else if (i < linkCount + destinationCount) //if this is a destination
             {
-                var destIndex = i - linkCount;
-                var nodePosition = linkDestinations[destIndex];
-                node.heuristic = (nodePosition - start).magnitude;
+                vertex.heuristic = (vertexPosition - start).magnitude;
 
                 //try path to all origins
 
                 for (var j = 0; j < linkCount; j++)
                 {
-                    var originPos = linkOrigins[j];
-                    ref var originNode = ref nodes[j];
+                    var originPos = GetVertexPosition(j);
+                    ref var originVertex = ref pathVertices[j];
 
                     //try connect
-                    var cost = CalculateSinglePath(nodePosition, originPos);
+                    var cost = CalculateSinglePath(vertexPosition, originPos);
 
                     //if there is a valid path
                     if (float.IsInfinity(cost))
                         continue;
 
-                    originNode.pred.Add((i, cost));
-                    node.succ.Add((j, cost));
+                    originVertex.pred.Add(new  PathLink(i, cost));
+                    vertex.succ.Add(new PathLink(j, cost));
                 }
 
                 //try path to our goal
-                var goalCost = CalculateSinglePath(nodePosition, goal);
+                var goalCost = CalculateSinglePath(vertexPosition, goal);
 
                 //if there is a valid path
                 if (float.IsInfinity(goalCost))
                     continue;
 
-                goalNode.pred.Add((i, goalCost));
-                node.succ.Add((goalIndex, goalCost));
+                goalVertex.pred.Add(new PathLink(i, goalCost));
+                vertex.succ.Add(new PathLink(goalIndex, goalCost));
 
             }else if (i == startIndex) //if this index is our start point
             {
-                node.heuristic = 0;
+                vertex.heuristic = 0;
 
                 //try path to all origins
 
                 for (var j = 0; j < linkCount; j++)
                 {
-                    var originPos = linkOrigins[j];
-                    ref var originNode = ref nodes[j];
+                    var originPos = GetVertexPosition(j);
+                    ref var originVertex = ref pathVertices[j];
 
                     //try connect
                     var cost = CalculateSinglePath(start, originPos);
@@ -308,8 +390,8 @@ public struct SmartFindPathJob : IJob, IDisposable
                     if (float.IsInfinity(cost))
                         continue;
 
-                    originNode.pred.Add((i, cost));
-                    node.succ.Add((j, cost));
+                    originVertex.pred.Add(new PathLink(i, cost));
+                    vertex.succ.Add(new PathLink(j, cost));
                 }
 
                 //try path directly to our goal
@@ -319,11 +401,11 @@ public struct SmartFindPathJob : IJob, IDisposable
                 if (float.IsInfinity(goalCost))
                     continue;
 
-                goalNode.pred.Add((i, goalCost));
-                node.succ.Add((goalIndex, goalCost));
+                goalVertex.pred.Add(new PathLink(i, goalCost));
+                vertex.succ.Add(new PathLink(goalIndex, goalCost));
             }else if (i == goalIndex) //if this index is our goal
             {
-                node.heuristic = (goal - start).magnitude;
+                vertex.heuristic = (goal - start).magnitude;
             }
             else
             {
@@ -334,34 +416,25 @@ public struct SmartFindPathJob : IJob, IDisposable
         }
     }
 
-    private void ReleaseData(PathNode[] nodes)
+    private void ReleaseVertices(PathVertex[] pathVertices)
     {
-        for (var i = 0; i < nodeCount ; i++)
+        for (var i = 0; i < vertexCount ; i++)
         {
-            ref var node = ref nodes[i];
+            ref var node = ref pathVertices[i];
             node.Dispose();
         }
+        ArrayPool<PathVertex>.Shared.Return(pathVertices);
     }
 
-    private struct HeapElementComparer : IComparer<(int index, PathNode.NodeKey key)>
+    private int CalculatePath(PathVertex[] pathVertices)
     {
-        public int Compare((int index, PathNode.NodeKey key) x, (int index, PathNode.NodeKey key) y)
-        {
-            return x.Item2.CompareTo(y.Item2);
-        }
-    }
+        ref var startVertex = ref pathVertices[startIndex];
+        ref var goalVertex = ref pathVertices[goalIndex];
 
-    private int CalculatePath(PathNode[] nodes)
-    {
-        var startIndex = nodeCount - 2;
-        var goalIndex = nodeCount - 1;
-        ref var startNode = ref nodes[startIndex];
-        ref var goalNode = ref nodes[goalIndex];
-
-        goalNode.rhs = 0;
+        goalVertex.rhs = 0;
         var heapComparer = new HeapElementComparer();
-        var heap = new List<(int index, PathNode.NodeKey key)>();
-        heap.Add((goalIndex, goalNode.CalculateKey()));
+        var heap = new List<(int index, PathVertex.VertexKey key)>();
+        heap.Add((goalIndex, goalVertex.CalculateKey()));
 
         var iterations = 0;
         var extraIterations = 0;
@@ -370,71 +443,72 @@ public struct SmartFindPathJob : IJob, IDisposable
         {
             iterations += 1;
             var (index, oldKey) = heap[0];
-            ref var currentNode = ref nodes[index];
+            ref var currentVertex = ref pathVertices[index];
 
             //if we have found a path
-            if (oldKey >= startNode.CalculateKey() && startNode.rhs <= startNode.g)
+            if (oldKey >= startVertex.CalculateKey() && startVertex.rhs <= startVertex.g)
                 //try to compute a few extra times in hope of finding a better path
                 if (extraIterations++ >= MaxExtraIterations)
                     break;
 
-            var newKey = currentNode.CalculateKey();
+            var newKey = currentVertex.CalculateKey();
 
             if (oldKey < newKey)
             {
                 //update heap
                 heap.RemoveAt(0);
                 heap.AddOrdered((index, newKey), heapComparer);
-            }else if (currentNode.g > currentNode.rhs)
+            }else if (currentVertex.g > currentVertex.rhs)
             {
-                currentNode.g = currentNode.rhs;
+                currentVertex.g = currentVertex.rhs;
                 heap.RemoveAt(0);
-                foreach (var (predIndex, cost) in currentNode.pred)
+                foreach (var (predIndex, cost) in currentVertex.pred)
                 {
+                    ref var predVertex = ref pathVertices[predIndex];
+
                     if (predIndex != goalIndex)
                     {
-                        ref var predNode = ref nodes[predIndex];
 
-                        var newRhs = cost + currentNode.g;
+                        var newRhs = cost + currentVertex.g;
 
-                        if (newRhs < predNode.rhs)
-                            predNode.rhs = newRhs;
+                        if (newRhs < predVertex.rhs)
+                            predVertex.rhs = newRhs;
                     }
 
-                    UpdateNode(predIndex);
+                    UpdateVertex(ref predVertex);
                 }
             }
             else
             {
-                var gOld = currentNode.g;
-                currentNode.g = float.PositiveInfinity;
+                var gOld = currentVertex.g;
+                currentVertex.g = float.PositiveInfinity;
 
-                List<(int index, float cost)> computable = [..currentNode.pred, (index, 0)];
+                List<PathLink> computable = [..currentVertex.pred, new PathLink(index, 0)];
                 foreach (var (predIndex, predCost) in computable)
                 {
+                    ref var predVertex = ref pathVertices[predIndex];
                     if (predIndex != goalIndex)
                     {
-                        ref var predNode = ref nodes[predIndex];
 
-                        if (Mathf.Approximately(predNode.rhs, predCost + gOld))
+                        if (Mathf.Approximately(predVertex.rhs, predCost + gOld))
                         {
                             var minRhs = float.PositiveInfinity;
 
-                            foreach (var (succIndex, succCost) in predNode.succ)
+                            foreach (var (succIndex, succCost) in predVertex.succ)
                             {
-                                ref var succNode = ref nodes[succIndex];
+                                ref var succVertex = ref pathVertices[succIndex];
 
-                                var newRhs = succCost + succNode.g;
+                                var newRhs = succCost + succVertex.g;
 
                                 if (newRhs < minRhs)
                                     minRhs = newRhs;
                             }
 
-                            predNode.rhs = minRhs;
+                            predVertex.rhs = minRhs;
                         }
                     }
 
-                    UpdateNode(predIndex);
+                    UpdateVertex(ref predVertex);
                 }
             }
         }
@@ -444,16 +518,16 @@ public struct SmartFindPathJob : IJob, IDisposable
 #endif
         //after computing
 
-        if (float.IsInfinity(startNode.rhs)) //no path found!
+        if (float.IsInfinity(startVertex.rhs)) //no path found!
             return -1;
 
         var bestIndex = -1;
         var minCost = float.PositiveInfinity;
 
-        foreach (var (succIndex, cost) in startNode.succ)
+        foreach (var (succIndex, cost) in startVertex.succ)
         {
-            ref var succNode = ref nodes[succIndex];
-            var newCost = cost + succNode.g;
+            ref var succVertex = ref pathVertices[succIndex];
+            var newCost = cost + succVertex.g;
 
             if (newCost >= minCost)
                 continue;
@@ -475,10 +549,9 @@ public struct SmartFindPathJob : IJob, IDisposable
 #endif
         return -1;
 
-        void UpdateNode(int index)
+        void UpdateVertex(ref PathVertex vertex)
         {
-            ref var node = ref nodes[index];
-
+            var index = vertex.index;
             var heapIndex = heap.FindIndex(e => e.index == index);
 
             if (heapIndex != -1)
@@ -486,9 +559,9 @@ public struct SmartFindPathJob : IJob, IDisposable
                 heap.RemoveAt(heapIndex);
             }
 
-            if (!Mathf.Approximately(node.g, node.rhs))
+            if (!Mathf.Approximately(vertex.g, vertex.rhs))
             {
-                heap.AddOrdered((index, node.CalculateKey()), heapComparer);
+                heap.AddOrdered((index, vertex.CalculateKey()), heapComparer);
             }
         }
     }
@@ -497,21 +570,31 @@ public struct SmartFindPathJob : IJob, IDisposable
     {
 #if SMART_PATHFINDING_DEBUG
         PathfindingLibPlugin.Instance.Logger.LogInfo($"Start {start} -> {goal} --------");
+        if (_previousVertices != null)
+        {
+            ReleaseVertices(_previousVertices);
+            _previousVertices = null;
+        }
 #endif
-        var nodes = ArrayPool<PathNode>.Shared.Rent(linkCount + destinationCount + 2);
 
-        PrepareData(nodes);
+        var pathVertices = ArrayPool<PathVertex>.Shared.Rent(vertexCount);
 
-        ref var startNode = ref nodes[linkCount + destinationCount];
-        ref var goalNode = ref nodes[linkCount + destinationCount + 1];
+        PopulateVertices(pathVertices);
 
-        if (startNode.succ.Count == 0)
+#if SMART_PATHFINDING_DEBUG
+        _previousVertices = pathVertices;
+#endif
+
+        ref var startVertex = ref pathVertices[linkCount + destinationCount];
+        ref var goalVertex = ref pathVertices[linkCount + destinationCount + 1];
+
+        if (startVertex.succ.Count == 0)
         {
 #if SMART_PATHFINDING_DEBUG
             PathfindingLibPlugin.Instance.Logger.LogInfo("Path failed, start position is isolated");
 #endif
             destinationIndex[0] = -1;
-        }else if (goalNode.pred.Count == 0)
+        }else if (goalVertex.pred.Count == 0)
         {
 #if SMART_PATHFINDING_DEBUG
             PathfindingLibPlugin.Instance.Logger.LogInfo("Path failed, goal position is isolated");
@@ -520,11 +603,11 @@ public struct SmartFindPathJob : IJob, IDisposable
         }
         else
         {
-            var result = CalculatePath(nodes);
+            var result = CalculatePath(pathVertices);
 
 #if SMART_PATHFINDING_DEBUG
 
-            PrintCurrPath(nodes);
+            PrintCurrPath(pathVertices);
 
             if (result == -1)
                 PathfindingLibPlugin.Instance.Logger.LogInfo("Path failed");
@@ -537,25 +620,25 @@ public struct SmartFindPathJob : IJob, IDisposable
             destinationIndex[0] = result;
         }
 
-        ReleaseData(nodes);
-        ArrayPool<PathNode>.Shared.Return(nodes);
+#if SMART_PATHFINDING_DEBUG
+        if(DebugVertices)
+            return;
+#endif
+
+        ReleaseVertices(pathVertices);
     }
 
 #if SMART_PATHFINDING_DEBUG
-    private void PrintCurrPath(PathNode[] nodes)
+    private void PrintCurrPath(PathVertex[] pathVertices)
     {
-        var startIndex = nodeCount - 2;
-        var goalIndex = nodeCount - 1;
-        ref var startNode = ref nodes[startIndex];
-
         var currIndex = startIndex;
         var builder = new StringBuilder("Path:\n");
 
         while (true)
         {
-            ref var currNode = ref nodes[currIndex];
+            ref var currVertex = ref pathVertices[currIndex];
 
-            builder.AppendFormat(" - distance: {0:0.###}", currNode.g);
+            builder.AppendFormat(" - distance: {0:0.###}", currVertex.g);
             if (currIndex == startIndex)
                 builder.AppendFormat(" Start {0}\n", start);
             else if (currIndex == goalIndex)
@@ -573,10 +656,10 @@ public struct SmartFindPathJob : IJob, IDisposable
             var bestIndex = -1;
             var minCost = float.PositiveInfinity;
 
-            foreach (var (succIndex, cost) in currNode.succ)
+            foreach (var (succIndex, cost) in currVertex.succ)
             {
-                ref var succNode = ref nodes[succIndex];
-                var newCost = cost + succNode.g;
+                ref var succVertex = ref pathVertices[succIndex];
+                var newCost = cost + succVertex.g;
 
                 if (newCost >= minCost)
                     continue;
@@ -599,4 +682,5 @@ public struct SmartFindPathJob : IJob, IDisposable
     {
         destinationIndex.Dispose();
     }
+
 }

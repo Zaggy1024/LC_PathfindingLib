@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 
@@ -27,45 +28,57 @@ internal class PatchMaskedPlayerEnemy
 
     private static void DoAIInterval(MaskedPlayerEnemy masked)
     {
-        if (tasks.TryGetValue(masked, out var task))
+        try
         {
-            if (!task.IsComplete)
-                return;
-            if (task.Result.HasValue)
+            if (tasks.TryGetValue(masked, out var task))
             {
-                var destination = task.Result.Value;
-                PathfindingLibPlugin.Instance.Logger.LogInfo($"Destination result is: {destination}");
-                switch (destination.Type)
+                if (!task.IsComplete)
+                    return;
+                if (task.Result.HasValue)
                 {
-                    case SmartDestinationType.DirectToDestination:
-                        masked.SetDestinationToPosition(destination.Position);
-                        break;
-                    case SmartDestinationType.Elevator:
-                        if (Vector3.Distance(masked.transform.position, destination.Position) < 5f)
-                        {
-                            destination.ElevatorFloor.CallElevator();
+                    var destination = task.Result.Value;
+                    PathfindingLibPlugin.Instance.Logger.LogInfo($"Destination result is: {destination}");
+                    switch (destination.Type)
+                    {
+                        case SmartDestinationType.DirectToDestination:
+                            masked.SetDestinationToPosition(destination.Position);
                             break;
-                        }
-                        masked.SetDestinationToPosition(destination.Position);
-                        break;
-                    case SmartDestinationType.EntranceTeleport:
-                        if (Vector3.Distance(masked.transform.position, destination.Position) < 5f)
-                        {
-                            UseTeleport(masked, destination.EntranceTeleport);
+                        case SmartDestinationType.Elevator:
+                            if (Vector3.Distance(masked.transform.position, destination.Position) < 5f)
+                            {
+                                destination.ElevatorFloor.CallElevator();
+                                break;
+                            }
+
+                            masked.SetDestinationToPosition(destination.Position);
                             break;
-                        }
-                        masked.SetDestinationToPosition(destination.Position);
-                        break;
+                        case SmartDestinationType.EntranceTeleport:
+                            if (Vector3.Distance(masked.transform.position, destination.Position) < 5f)
+                            {
+                                UseTeleport(masked, destination.EntranceTeleport);
+                                break;
+                            }
+
+                            masked.SetDestinationToPosition(destination.Position);
+                            break;
+                    }
+
+                    PathfindingLibPlugin.Instance.Logger.LogInfo($"Destination is {masked.destination}");
                 }
-                PathfindingLibPlugin.Instance.Logger.LogInfo($"Destination is {masked.destination}");
             }
+
+            task = SmartPathTask.StartPathTask(masked.transform.position,
+                StartOfRound.Instance.localPlayerController.transform.position, masked.agent);
+            tasks[masked] = task;
         }
-        task = SmartPathTask.StartPathTask(masked.transform.position, StartOfRound.Instance.localPlayerController.transform.position, masked.agent);
-        tasks[masked] = task;
+        catch (Exception ex)
+        {
+            PathfindingLibPlugin.Instance.Logger.LogFatal(ex);
+        }
     }
 
     [HarmonyTranspiler]
-    [HarmonyPatch(nameof(CrawlerAI.DoAIInterval))]
+    [HarmonyPatch(nameof(MaskedPlayerEnemy.DoAIInterval))]
     private static IEnumerable<CodeInstruction> DoAIIntervalTranspiler(IEnumerable<CodeInstruction> instructions)
     {
         var injector = new ILInjector(instructions)
