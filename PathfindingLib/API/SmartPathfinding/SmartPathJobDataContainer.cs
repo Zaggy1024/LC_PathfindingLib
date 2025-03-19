@@ -23,6 +23,7 @@ internal class SmartPathJobDataContainer : IDisposable
     internal NativeArray<IndexAndSize> linkDestinationSlices;
     internal NativeArray<Vector3> linkDestinations;
     internal int linkCount;
+    internal int destinationCount;
 
     internal static SmartPathJobDataContainer GetJobData()
     {
@@ -80,6 +81,7 @@ internal class SmartPathJobDataContainer : IDisposable
         var teleportDestinationsArray = NoAllocHelpers.ExtractArrayFromListT(linkDestinationsManaged);
         linkDestinations = new(linkDestinationsManaged.Count, Allocator.Persistent);
         NativeArray<Vector3>.Copy(teleportDestinationsArray, linkDestinations);
+        destinationCount = linkDestinationsManaged.Count;
     }
 
     private void Clear()
