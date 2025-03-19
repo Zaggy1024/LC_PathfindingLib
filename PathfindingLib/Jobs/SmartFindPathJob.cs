@@ -312,7 +312,8 @@ public struct SmartFindPathJob : IJob, IDisposable
                     vertex.succ.Add(new PathLink(destIndex, traverseCost));
                 }
 
-            }else if (i < linkCount + destinationCount) //if this is a destination
+            }
+            else if (i < linkCount + destinationCount) //if this is a destination
             {
                 vertex.heuristic = (vertexPosition - start).magnitude;
 
@@ -330,7 +331,7 @@ public struct SmartFindPathJob : IJob, IDisposable
                     if (float.IsInfinity(cost))
                         continue;
 
-                    originVertex.pred.Add(new  PathLink(i, cost));
+                    originVertex.pred.Add(new PathLink(i, cost));
                     vertex.succ.Add(new PathLink(j, cost));
                 }
 
@@ -344,7 +345,8 @@ public struct SmartFindPathJob : IJob, IDisposable
                 goalVertex.pred.Add(new PathLink(i, goalCost));
                 vertex.succ.Add(new PathLink(goalIndex, goalCost));
 
-            }else if (i == startIndex) //if this index is our start point
+            }
+            else if (i == startIndex) //if this index is our start point
             {
                 vertex.heuristic = 0;
 
@@ -375,7 +377,8 @@ public struct SmartFindPathJob : IJob, IDisposable
 
                 goalVertex.pred.Add(new PathLink(i, goalCost));
                 vertex.succ.Add(new PathLink(goalIndex, goalCost));
-            }else if (i == goalIndex) //if this index is our goal
+            }
+            else if (i == goalIndex) //if this index is our goal
             {
                 vertex.heuristic = (goal - start).magnitude;
             }
@@ -428,7 +431,8 @@ public struct SmartFindPathJob : IJob, IDisposable
                 //update heap
                 heap.RemoveAt(0);
                 heap.AddOrdered(new(index, newKey), heapComparer);
-            }else if (currentVertex.g > currentVertex.rhs)
+            }
+            else if (currentVertex.g > currentVertex.rhs)
             {
                 currentVertex.g = currentVertex.rhs;
                 heap.RemoveAt(0);
@@ -450,11 +454,11 @@ public struct SmartFindPathJob : IJob, IDisposable
             }
             else
             {
+                // Path is dead end
                 var gOld = currentVertex.g;
                 currentVertex.g = float.PositiveInfinity;
 
-                List<PathLink> computable = [..currentVertex.pred, new PathLink(index, 0)];
-                foreach (var (predIndex, predCost) in computable)
+                void RecalculateRHS(int goalIndex, int predIndex, float predCost)
                 {
                     ref var predVertex = ref pathVertices.GetRef(predIndex);
                     if (predIndex != goalIndex)
@@ -480,11 +484,16 @@ public struct SmartFindPathJob : IJob, IDisposable
 
                     UpdateVertex(ref predVertex);
                 }
+
+                foreach (var (predIndex, predCost) in currentVertex.pred)
+                    RecalculateRHS(goalIndex, predIndex, predCost);
+
+                RecalculateRHS(goalIndex, index, 0);
             }
         }
 
 #if SMART_PATHFINDING_DEBUG
-        PathfindingLibPlugin.Instance.Logger.LogDebug($"Found path after {iterations-extraIterations} iterations, then searched for an extra {extraIterations} iterations");
+        PathfindingLibPlugin.Instance.Logger.LogDebug($"Found path after {iterations - extraIterations} iterations, then searched for an extra {extraIterations} iterations");
 #endif
         //after computing
 
@@ -562,7 +571,8 @@ public struct SmartFindPathJob : IJob, IDisposable
             PathfindingLibPlugin.Instance.Logger.LogInfo("Path failed, start position is isolated");
 #endif
             destinationIndex[0] = -1;
-        }else if (goalVertex.pred.Length == 0)
+        }
+        else if (goalVertex.pred.Length == 0)
         {
 #if SMART_PATHFINDING_DEBUG
             PathfindingLibPlugin.Instance.Logger.LogInfo("Path failed, goal position is isolated");
