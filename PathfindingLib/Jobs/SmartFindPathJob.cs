@@ -1,4 +1,4 @@
-//#define SMART_PATHFINDING_DEBUG
+#define SMART_PATHFINDING_DEBUG
 
 using System;
 using System.Collections.Generic;
@@ -26,13 +26,9 @@ using System.Text;
 
 namespace PathfindingLib.Jobs;
 
-// ReSharper disable MemberCanBeMadeStatic.Local
 public struct SmartFindPathJob : IJob, IDisposable
 {
     private const int MaxExtraIterations = 30;
-
-#if SMART_PATHFINDING_DEBUG
-#endif
 
     [ReadOnly, NativeDisableContainerSafetyRestriction] private NativeArray<NavMeshQuery> ThreadQueriesRef;
 
@@ -50,7 +46,6 @@ public struct SmartFindPathJob : IJob, IDisposable
     [ReadOnly] private int startIndex;
     [ReadOnly] private int goalIndex;
 
-
     [ReadOnly, NativeSetThreadIndex] private int threadIndex;
 
     [WriteOnly] internal NativeArray<int> destinationIndex;
@@ -61,8 +56,8 @@ public struct SmartFindPathJob : IJob, IDisposable
 
         agentTypeID = agent.agentTypeID;
         areaMask = agent.areaMask;
-        this.start = origin;
-        this.goal = destination;
+        start = origin;
+        goal = destination;
 
         // Shhhh, compiler...
         threadIndex = -1;
@@ -159,7 +154,7 @@ public struct SmartFindPathJob : IJob, IDisposable
         internal float cost = cost;
 
 #if SMART_PATHFINDING_DEBUG
-        public override string ToString()
+        public readonly override string ToString()
         {
             return $"{index} {nameof(cost)}:{cost:0.###}";
         }
@@ -171,16 +166,14 @@ public struct SmartFindPathJob : IJob, IDisposable
         internal UnsafeList<PathLink> pred;
         internal UnsafeList<PathLink> succ;
 
-        internal int index;
+        internal readonly int index;
 
         internal float heuristic;
         internal float g;
         internal float rhs;
 
-        public void Initialize(int index, int verticesCount)
+        internal PathVertex(int index, int verticesCount)
         {
-            Dispose();
-
             pred = new UnsafeList<PathLink>(verticesCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
             succ = new UnsafeList<PathLink>(verticesCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
 
@@ -197,17 +190,18 @@ public struct SmartFindPathJob : IJob, IDisposable
             pred = default;
             succ.Dispose();
             succ = default;
+
             heuristic = float.NaN;
             g = float.NaN;
             rhs = float.NaN;
         }
 
-        internal record VertexKey(float key1, float key2) : IComparable<VertexKey>
+        internal readonly record struct VertexKey(float key1, float key2) : IComparable<VertexKey>
         {
             private readonly float key1 = key1;
             private readonly float key2 = key2;
 
-            public int CompareTo(VertexKey other)
+            public readonly int CompareTo(VertexKey other)
             {
                 var key1Comparison = key1.CompareTo(other.key1);
                 return key1Comparison != 0 ? key1Comparison : key2.CompareTo(other.key2);
@@ -234,7 +228,7 @@ public struct SmartFindPathJob : IJob, IDisposable
             }
 
 #if SMART_PATHFINDING_DEBUG
-            public override string ToString()
+            public readonly override string ToString()
             {
                 return $"[{key1:0.###}, {key2:0.###}]";
             }
@@ -250,18 +244,16 @@ public struct SmartFindPathJob : IJob, IDisposable
         }
 
 #if SMART_PATHFINDING_DEBUG
-        public override string ToString()
+        public readonly override string ToString()
         {
-            if (!isValid)
-                return "Destroyed";
             return $"{nameof(index)}: {index}, {nameof(g)}: {g:0.###}, {nameof(rhs)}: {rhs:0.###}";
         }
 #endif
     }
 
-    private struct HeapElementComparer : IComparer<(int index, PathVertex.VertexKey key)>
+    private readonly struct HeapElementComparer : IComparer<HeapElement>
     {
-        public readonly int Compare((int index, PathVertex.VertexKey key) x, (int index, PathVertex.VertexKey key) y)
+        public readonly int Compare(HeapElement x, HeapElement y)
         {
             return x.key.CompareTo(y.key);
         }
@@ -270,7 +262,7 @@ public struct SmartFindPathJob : IJob, IDisposable
     private Vector3 GetVertexPosition(int vertexIndex)
     {
         if (vertexIndex < 0)
-            throw new IndexOutOfRangeException("index cannot be negative");
+            throw new IndexOutOfRangeException("Index cannot be negative.");
 
         if (vertexIndex < linkCount)
             return linkOrigins[vertexIndex];
@@ -284,16 +276,13 @@ public struct SmartFindPathJob : IJob, IDisposable
         if (vertexIndex == goalIndex)
             return goal;
 
-        throw new IndexOutOfRangeException($"ïndex {vertexIndex} is otu of range");
+        throw new IndexOutOfRangeException($"Index {vertexIndex} is out of range.");
     }
 
     private void PopulateVertices(NativeArray<PathVertex> pathVertices)
     {
         for (var i = 0; i < vertexCount; i++)
-        {
-            ref var vertex = ref pathVertices.GetRef(i);
-            vertex.Initialize(i, vertexCount);
-        }
+            pathVertices[i] = new(i, vertexCount);
 
         ref var goalVertex = ref pathVertices.GetRef(goalIndex);
 
@@ -399,6 +388,12 @@ public struct SmartFindPathJob : IJob, IDisposable
         }
     }
 
+    private readonly record struct HeapElement(int index, PathVertex.VertexKey key)
+    {
+        internal readonly int index = index;
+        internal readonly PathVertex.VertexKey key = key;
+    }
+
     private readonly int CalculatePath(NativeArray<PathVertex> pathVertices)
     {
         ref var startVertex = ref pathVertices.GetRef(startIndex);
@@ -406,13 +401,15 @@ public struct SmartFindPathJob : IJob, IDisposable
 
         goalVertex.rhs = 0;
         var heapComparer = new HeapElementComparer();
-        var heap = new List<(int index, PathVertex.VertexKey key)>();
-        heap.Add((goalIndex, goalVertex.CalculateKey()));
+        var heap = new UnsafeList<HeapElement>(vertexCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory)
+        {
+            new(goalIndex, goalVertex.CalculateKey()),
+        };
 
         var iterations = 0;
         var extraIterations = 0;
 
-        while (heap.Count > 0)
+        while (heap.Length > 0)
         {
             iterations += 1;
             var (index, oldKey) = heap[0];
@@ -430,7 +427,7 @@ public struct SmartFindPathJob : IJob, IDisposable
             {
                 //update heap
                 heap.RemoveAt(0);
-                heap.AddOrdered((index, newKey), heapComparer);
+                heap.AddOrdered(new(index, newKey), heapComparer);
             }else if (currentVertex.g > currentVertex.rhs)
             {
                 currentVertex.g = currentVertex.rhs;
@@ -528,22 +525,31 @@ public struct SmartFindPathJob : IJob, IDisposable
             var heapIndex = heap.FindIndex(e => e.index == index);
 
             if (heapIndex != -1)
-            {
                 heap.RemoveAt(heapIndex);
-            }
 
             if (!Mathf.Approximately(vertex.g, vertex.rhs))
-            {
-                heap.AddOrdered((index, vertex.CalculateKey()), heapComparer);
-            }
+                heap.AddOrdered(new(index, vertex.CalculateKey()), heapComparer);
         }
+    }
+
+    private void DisposeVertices(ref NativeArray<PathVertex> vertices)
+    {
+        if (vertices == default)
+            return;
+
+        foreach (var vertex in vertices)
+            vertex.Dispose();
+
+        vertices.Dispose();
+
+        vertices = default;
     }
 
     public void Execute()
     {
         var stopwatch = Stopwatch.StartNew();
 
-        using var pathVertices = new NativeArray<PathVertex>(vertexCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+        var pathVertices = new NativeArray<PathVertex>(vertexCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
 
         PopulateVertices(pathVertices);
 
@@ -581,8 +587,7 @@ public struct SmartFindPathJob : IJob, IDisposable
             destinationIndex[0] = result;
         }
 
-        foreach (var vertex in pathVertices)
-            vertex.Dispose();
+        DisposeVertices(ref pathVertices);
 
         PathfindingLibPlugin.Instance.Logger.LogInfo($"Path took {stopwatch.Elapsed.TotalMilliseconds}ms");
     }
