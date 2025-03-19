@@ -1,6 +1,7 @@
-﻿//#define SMART_PATHFINDING_DEBUG
+﻿#define SMART_PATHFINDING_DEBUG
 
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 
 using Unity.Collections;
@@ -14,6 +15,7 @@ using PathfindingLib.API;
 using PathfindingLib.API.SmartPathfinding;
 using PathfindingLib.Utilities;
 using PathfindingLib.Utilities.Collections;
+using UnityEngine.Rendering;
 
 #if BENCHMARKING
 using Unity.Profiling;
@@ -25,18 +27,23 @@ using System.Text;
 
 namespace PathfindingLib.Jobs;
 
+// ReSharper disable MemberCanBeMadeStatic.Local
 public struct SmartFindPathJob : IJob, IDisposable
 {
+    private const int MaxExtraIterations = 30;
+
     [ReadOnly, NativeDisableContainerSafetyRestriction] private NativeArray<NavMeshQuery> ThreadQueriesRef;
 
     [ReadOnly] private int agentTypeID;
     [ReadOnly] private int areaMask;
-    [ReadOnly] private Vector3 origin;
-    [ReadOnly] private Vector3 destination;
+    [ReadOnly] private Vector3 start;
+    [ReadOnly] private Vector3 goal;
     [ReadOnly, NativeDisableParallelForRestriction] private NativeArray<Vector3> linkOrigins;
     [ReadOnly, NativeDisableParallelForRestriction] private NativeArray<IndexAndSize> linkDestinationSlices;
     [ReadOnly, NativeDisableParallelForRestriction] private NativeArray<Vector3> linkDestinations;
     [ReadOnly] private int linkCount;
+    [ReadOnly] private int destinationCount;
+    [ReadOnly] private int nodeCount;
 
     [ReadOnly, NativeSetThreadIndex] private int threadIndex;
 
@@ -48,8 +55,8 @@ public struct SmartFindPathJob : IJob, IDisposable
 
         agentTypeID = agent.agentTypeID;
         areaMask = agent.areaMask;
-        this.origin = origin;
-        this.destination = destination;
+        this.start = origin;
+        this.goal = destination;
 
         // Shhhh, compiler...
         threadIndex = -1;
@@ -58,6 +65,8 @@ public struct SmartFindPathJob : IJob, IDisposable
         linkDestinationSlices = data.linkDestinationSlices;
         linkDestinations = data.linkDestinations;
         linkCount = data.linkCount;
+        destinationCount = data.destinationCount;
+        nodeCount = linkCount + destinationCount + 2;
 
         destinationIndex = new(1, Allocator.Persistent);
         destinationIndex[0] = -1;
@@ -67,7 +76,7 @@ public struct SmartFindPathJob : IJob, IDisposable
     private static readonly ProfilerMarker CalculateSinglePathMarker = new("CalculateSinglePath");
 #endif
 
-    private float CalculateSinglePath(Vector3 start, Vector3 end)
+    private float CalculateSinglePath(Vector3 origin, Vector3 destination)
     {
         var query = ThreadQueriesRef[threadIndex];
 
@@ -77,13 +86,13 @@ public struct SmartFindPathJob : IJob, IDisposable
         using var markerAuto = new TogglableProfilerAuto(in CalculateSinglePathMarker);
 #endif
 
-        var startLocation = query.MapLocation(start, SharedJobValues.OriginExtents, agentTypeID, areaMask);
+        var startLocation = query.MapLocation(origin, SharedJobValues.OriginExtents, agentTypeID, areaMask);
 
         if (!query.IsValid(startLocation.polygon))
             return float.PositiveInfinity;
 
         var destinationExtents = SharedJobValues.DestinationExtents;
-        var destinationLocation = query.MapLocation(end, destinationExtents, agentTypeID, areaMask);
+        var destinationLocation = query.MapLocation(destination, destinationExtents, agentTypeID, areaMask);
         if (!query.IsValid(destinationLocation))
             return float.PositiveInfinity;
 
@@ -112,9 +121,10 @@ public struct SmartFindPathJob : IJob, IDisposable
         query.GetPathResult(pathNodes);
 
         using var path = new NativeArray<NavMeshLocation>(NavMeshQueryUtils.RecommendedCornerCount, Allocator.Temp);
-        var straightPathStatus = NavMeshQueryUtils.FindStraightPath(query, start, end, pathNodes, pathNodesSize, path, out var pathSize);
+        var straightPathStatus = NavMeshQueryUtils.FindStraightPath(query, origin, destination, pathNodes, pathNodesSize, path, out var pathSize);
         pathNodes.Dispose();
 
+        // ReSharper disable once DisposeOnUsingVariable
         readLocker.Dispose();
 
         if (straightPathStatus.GetResult() != PathQueryStatus.Success)
@@ -122,7 +132,7 @@ public struct SmartFindPathJob : IJob, IDisposable
 
         // Check if the end of the path is close enough to the target.
         var pathEnd = path[pathSize - 1].position;
-        var endDistance = (pathEnd - end).sqrMagnitude;
+        var endDistance = (pathEnd - destination).sqrMagnitude;
         if (endDistance > SharedJobValues.MaximumEndpointDistanceSquared)
             return float.PositiveInfinity;
 
@@ -133,198 +143,457 @@ public struct SmartFindPathJob : IJob, IDisposable
         return distance;
     }
 
-    private struct PathFrame
+    private struct PathNode: IDisposable
     {
-        internal int rootNode;
+        internal List<(int index, float cost)> pred;
+        internal List<(int index, float cost)> succ;
 
-        internal float length;
-        internal int segmentCount;
-        internal Vector3 origin;
-        internal int destination;
+        internal float heuristic = float.PositiveInfinity;
+        internal float g = float.PositiveInfinity;
+        internal float rhs = float.PositiveInfinity;
 
-#if SMART_PATHFINDING_DEBUG
-        internal NativeArray<int> path;
-#endif
-
-        internal PathFrame(int rootNode, Vector3 origin)
+        public PathNode()
         {
-            this.rootNode = rootNode;
-            this.origin = origin;
-
-            destination = rootNode;
-
-#if SMART_PATHFINDING_DEBUG
-            path = new NativeArray<int>(1, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
-            path[0] = rootNode;
-#endif
+            pred = ListPool<(int index, float cost)>.Get();
+            pred.Clear();
+            succ = ListPool<(int index, float cost)>.Get();
+            succ.Clear();
         }
 
-        internal readonly PathFrame Extend(float segmentLength, Vector3 newOrigin, int newDestination)
+        public void Dispose()
         {
-            var result = new PathFrame()
+            ListPool<(int index, float cost)>.Release(pred);
+            pred = null;
+            ListPool<(int index, float cost)>.Release(succ);
+            succ = null;
+            heuristic = float.NaN;
+            g = float.NaN;
+            rhs = float.NaN;
+        }
+
+        internal struct NodeKey : IComparable<NodeKey>
+        {
+            internal readonly float key1;
+            internal readonly float key2;
+
+            public NodeKey(float key1, float key2)
             {
-                rootNode = rootNode,
-                origin = newOrigin,
-                destination = newDestination,
-                length = length + segmentLength,
-                segmentCount = segmentCount + 1,
-#if SMART_PATHFINDING_DEBUG
-                path = new NativeArray<int>(path.Length + 1, Allocator.Temp, NativeArrayOptions.UninitializedMemory),
-#endif
-            };
-
-#if SMART_PATHFINDING_DEBUG
-            NativeArray<int>.Copy(path, result.path, path.Length);
-            result.path[^1] = newDestination;
-#endif
-            return result;
-        }
-    }
-
-    private struct PathFrameComparer : IComparer<PathFrame>
-    {
-        public readonly int Compare(PathFrame a, PathFrame b)
-        {
-            if (Mathf.Approximately(a.length, b.length))
-                return Comparer<int>.Default.Compare(a.segmentCount, b.segmentCount);
-
-            return Comparer<float>.Default.Compare(a.length, b.length);
-        }
-    }
-
-    private Vector3 GetDestinationAtIndex(int index)
-    {
-        if (index == linkCount)
-            return destination;
-        return linkOrigins[index];
-    }
-
-    private int CalculatePath()
-    {
-        var shortestLength = float.PositiveInfinity;
-        var shortestSegmentCount = int.MaxValue;
-        var shortestPath = -1;
-
-        // Fill the heap with the initial destinations:
-        //   - The direct destination
-        //   - All link origins
-        var heap = new NativeHeap<PathFrame, PathFrameComparer>(Allocator.Temp, 16, new PathFrameComparer());
-        heap.Insert(new PathFrame(linkCount, origin));
-
-        for (var i = 0; i < linkCount; i++)
-            heap.Insert(new PathFrame(i, origin));
-
-        // Pull the next shortest path from the queue until it is empty.
-        while (heap.TryPop(out PathFrame currentFrame))
-        {
-            // Skip paths that cannot be shorter than the current shortest path.
-            if (Mathf.Approximately(currentFrame.length, shortestLength) && currentFrame.segmentCount >= shortestSegmentCount)
-                continue;
-            if (currentFrame.length >= shortestLength)
-                continue;
-            if (currentFrame.segmentCount > linkCount)
-                continue;
-
-#if SMART_PATHFINDING_DEBUG
-            PathfindingLibPlugin.Instance.Logger.LogInfo($"Current frame (depth {currentFrame.segmentCount}, length {currentFrame.length}) destination: {currentFrame.destination} ({(currentFrame.destination < linkCount ? SmartPathJobDataContainer.linkNames[currentFrame.destination] : "destination")})");
-#endif
-
-            var destinationPosition = GetDestinationAtIndex(currentFrame.destination);
-
-            // Get the length of the path to the current link or the final destination.
-            var segmentLength = CalculateSinglePath(currentFrame.origin, destinationPosition);
-            if (float.IsPositiveInfinity(segmentLength))
-            {
-#if SMART_PATHFINDING_DEBUG
-                PathfindingLibPlugin.Instance.Logger.LogInfo($"  Path from {currentFrame.origin} to {destinationPosition} failed");
-#endif
-                continue;
+                this.key1 = key1;
+                this.key2 = key2;
             }
 
-#if SMART_PATHFINDING_DEBUG
-            PathfindingLibPlugin.Instance.Logger.LogInfo($"  Path from {currentFrame.origin} to {destinationPosition} has length {segmentLength}");
-#endif
-
-            // If we found a direct path that is shorter than the current shortest, replace it with the current one.
-            var newLength = currentFrame.length + segmentLength;
-            var newSegmentCount = currentFrame.segmentCount + 1;
-
-            if (currentFrame.destination == linkCount)
+            public int CompareTo(NodeKey other)
             {
-                if (Mathf.Approximately(newLength, shortestLength) && newSegmentCount >= shortestSegmentCount)
-                    continue;
-                if (newLength >= shortestLength)
-                    continue;
-                shortestLength = newLength;
-                shortestSegmentCount = newSegmentCount;
-                shortestPath = currentFrame.rootNode;
+                var key1Comparison = key1.CompareTo(other.key1);
+                return key1Comparison != 0 ? key1Comparison : key2.CompareTo(other.key2);
+            }
 
-#if SMART_PATHFINDING_DEBUG
-                var debugStr = new StringBuilder(256);
-                debugStr.AppendFormat("  Found path of length {0:.###} ({1} segments)\n", newLength, currentFrame.segmentCount);
-                foreach (var linkID in currentFrame.path)
+            public static bool operator <(NodeKey left, NodeKey right)
+            {
+                return left.CompareTo(right) < 0;
+            }
+
+            public static bool operator >(NodeKey left, NodeKey right)
+            {
+                return left.CompareTo(right) > 0;
+            }
+
+            public static bool operator <=(NodeKey left, NodeKey right)
+            {
+                return left.CompareTo(right) <= 0;
+            }
+
+            public static bool operator >=(NodeKey left, NodeKey right)
+            {
+                return left.CompareTo(right) >= 0;
+            }
+        }
+
+        public readonly NodeKey CalculateKey()
+        {
+            var key2 = Mathf.Min(g, rhs);
+            var key1 = key2 + heuristic;
+
+            return new NodeKey(key1, key2);
+        }
+    }
+
+    private void PrepareData(PathNode[] nodes)
+    {
+        for (var i = 0; i < nodeCount; i++)
+        {
+            nodes[i] = new PathNode();
+        }
+
+        var startIndex = nodeCount - 2;
+        var goalIndex = nodeCount - 1;
+        ref var startNode = ref nodes[startIndex];
+        ref var goalNode = ref nodes[goalIndex];
+
+        for (var i = 0; i < nodeCount; i++)
+        {
+            ref var node = ref nodes[i];
+
+            if (i < linkCount) //if this index is an origin
+            {
+                var nodePosition = linkOrigins[i];
+                node.heuristic = (nodePosition - start).magnitude;
+
+                //connect all its destinations
+
+                var slice = linkDestinationSlices[i];
+
+                for (var j = slice.index; j < slice.index + slice.size; j++)
                 {
-                    debugStr.Append(" - ");
-                    if (linkID >= linkCount)
-                        debugStr.Append("Destination");
-                    else
-                        debugStr.Append(SmartPathJobDataContainer.linkNames[linkID]);
-                    debugStr.Append('\n');
+                    var destIndex = linkCount + j;
+
+                    //TODO add costs! it's important the cost is never 0 or less
+                    var traverseCost = 0.0001f;
+
+                    ref var destinationNode = ref nodes[destIndex];
+
+                    destinationNode.pred.Add((i, traverseCost));
+                    node.succ.Add((destIndex, traverseCost));
                 }
-                PathfindingLibPlugin.Instance.Logger.LogInfo(debugStr);
-#endif
-                continue;
-            }
 
-            // Again, insert the direct destination and all links to recurse.
-            var linkDestinationSlice = linkDestinationSlices[currentFrame.destination];
-
-            for (var linkDestinationSliceIndex = 0; linkDestinationSliceIndex < linkDestinationSlice.size; linkDestinationSliceIndex++)
+            }else if (i < linkCount + destinationCount) //if this is a destination
             {
-                var linkDestinationIndex = linkDestinationSlice.index + linkDestinationSliceIndex;
-                var linkDestination = linkDestinations[linkDestinationIndex];
-                var directPathFrame = currentFrame.Extend(segmentLength, linkDestination, linkCount);
-                heap.Insert(directPathFrame);
+                var destIndex = i - linkCount;
+                var nodePosition = linkDestinations[destIndex];
+                node.heuristic = (nodePosition - start).magnitude;
 
-#if SMART_PATHFINDING_DEBUG
-                PathfindingLibPlugin.Instance.Logger.LogInfo($"    Link leads to {linkDestinationIndex} ({linkDestination})");
-                PathfindingLibPlugin.Instance.Logger.LogInfo($"    - Added direct path frame with length {directPathFrame.length}");
-#endif
+                //try path to all origins
 
-                for (var i = 0; i < linkCount; i++)
+                for (var j = 0; j < linkCount; j++)
                 {
-                    var linkPathFrame = currentFrame.Extend(segmentLength, linkDestination, i);
-                    heap.Insert(linkPathFrame);
+                    var originPos = linkOrigins[j];
+                    ref var originNode = ref nodes[j];
 
+                    //try connect
+                    var cost = CalculateSinglePath(nodePosition, originPos);
+
+                    //if there is a valid path
+                    if (float.IsInfinity(cost))
+                        continue;
+
+                    originNode.pred.Add((i, cost));
+                    node.succ.Add((j, cost));
+                }
+
+                //try path to our goal
+                var goalCost = CalculateSinglePath(nodePosition, goal);
+
+                //if there is a valid path
+                if (float.IsInfinity(goalCost))
+                    continue;
+
+                goalNode.pred.Add((i, goalCost));
+                node.succ.Add((goalIndex, goalCost));
+
+            }else if (i == startIndex) //if this index is our start point
+            {
+                node.heuristic = 0;
+
+                //try path to all origins
+
+                for (var j = 0; j < linkCount; j++)
+                {
+                    var originPos = linkOrigins[j];
+                    ref var originNode = ref nodes[j];
+
+                    //try connect
+                    var cost = CalculateSinglePath(start, originPos);
+
+                    //if there is a valid path
+                    if (float.IsInfinity(cost))
+                        continue;
+
+                    originNode.pred.Add((i, cost));
+                    node.succ.Add((j, cost));
+                }
+
+                //try path directly to our goal
+                var goalCost = CalculateSinglePath(start, goal);
+
+                //if there is a valid path
+                if (float.IsInfinity(goalCost))
+                    continue;
+
+                goalNode.pred.Add((i, goalCost));
+                node.succ.Add((goalIndex, goalCost));
+            }else if (i == goalIndex) //if this index is our goal
+            {
+                node.heuristic = (goal - start).magnitude;
+            }
+            else
+            {
 #if SMART_PATHFINDING_DEBUG
-                    PathfindingLibPlugin.Instance.Logger.LogInfo($"    - Added link path frame to {i} ({SmartPathJobDataContainer.linkNames[i]}) with length {linkPathFrame.length}");
+                PathfindingLibPlugin.Instance.Logger.LogError($"Index {i} is not mapped in PrepareData");
 #endif
+            }
+        }
+    }
+
+    private void ReleaseData(PathNode[] nodes)
+    {
+        for (var i = 0; i < nodeCount ; i++)
+        {
+            ref var node = ref nodes[i];
+            node.Dispose();
+        }
+    }
+
+    private struct HeapElementComparer : IComparer<(int index, PathNode.NodeKey key)>
+    {
+        public int Compare((int index, PathNode.NodeKey key) x, (int index, PathNode.NodeKey key) y)
+        {
+            return x.Item2.CompareTo(y.Item2);
+        }
+    }
+
+    private int CalculatePath(PathNode[] nodes)
+    {
+        var startIndex = nodeCount - 2;
+        var goalIndex = nodeCount - 1;
+        ref var startNode = ref nodes[startIndex];
+        ref var goalNode = ref nodes[goalIndex];
+
+        goalNode.rhs = 0;
+        var heapComparer = new HeapElementComparer();
+        var heap = new List<(int index, PathNode.NodeKey key)>();
+        heap.Add((goalIndex, goalNode.CalculateKey()));
+
+        var iterations = 0;
+        var extraIterations = 0;
+
+        while (heap.Count > 0)
+        {
+            iterations += 1;
+            var (index, oldKey) = heap[0];
+            ref var currentNode = ref nodes[index];
+
+            //if we have found a path
+            if (oldKey >= startNode.CalculateKey() && startNode.rhs <= startNode.g)
+                //try to compute a few extra times in hope of finding a better path
+                if (extraIterations++ >= MaxExtraIterations)
+                    break;
+
+            var newKey = currentNode.CalculateKey();
+
+            if (oldKey < newKey)
+            {
+                //update heap
+                heap.RemoveAt(0);
+                heap.AddOrdered((index, newKey), heapComparer);
+            }else if (currentNode.g > currentNode.rhs)
+            {
+                currentNode.g = currentNode.rhs;
+                heap.RemoveAt(0);
+                foreach (var (predIndex, cost) in currentNode.pred)
+                {
+                    if (predIndex != goalIndex)
+                    {
+                        ref var predNode = ref nodes[predIndex];
+
+                        var newRhs = cost + currentNode.g;
+
+                        if (newRhs < predNode.rhs)
+                            predNode.rhs = newRhs;
+                    }
+
+                    UpdateNode(predIndex);
+                }
+            }
+            else
+            {
+                var gOld = currentNode.g;
+                currentNode.g = float.PositiveInfinity;
+
+                List<(int index, float cost)> computable = [..currentNode.pred, (index, 0)];
+                foreach (var (predIndex, predCost) in computable)
+                {
+                    if (predIndex != goalIndex)
+                    {
+                        ref var predNode = ref nodes[predIndex];
+
+                        if (Mathf.Approximately(predNode.rhs, predCost + gOld))
+                        {
+                            var minRhs = float.PositiveInfinity;
+
+                            foreach (var (succIndex, succCost) in predNode.succ)
+                            {
+                                ref var succNode = ref nodes[succIndex];
+
+                                var newRhs = succCost + succNode.g;
+
+                                if (newRhs < minRhs)
+                                    minRhs = newRhs;
+                            }
+
+                            predNode.rhs = minRhs;
+                        }
+                    }
+
+                    UpdateNode(predIndex);
                 }
             }
         }
 
-        return shortestPath;
+#if SMART_PATHFINDING_DEBUG
+        PathfindingLibPlugin.Instance.Logger.LogDebug($"Found path after {iterations-extraIterations} iterations, then searched for an extra {extraIterations} iterations");
+#endif
+        //after computing
+
+        if (float.IsInfinity(startNode.rhs)) //no path found!
+            return -1;
+
+        var bestIndex = -1;
+        var minCost = float.PositiveInfinity;
+
+        foreach (var (succIndex, cost) in startNode.succ)
+        {
+            ref var succNode = ref nodes[succIndex];
+            var newCost = cost + succNode.g;
+
+            if (newCost >= minCost)
+                continue;
+
+            minCost = newCost;
+            bestIndex = succIndex;
+        }
+
+        //if the best solution is a direct path
+        if (bestIndex == goalIndex)
+            return linkCount;
+
+        if (bestIndex < linkCount)
+            return bestIndex;
+
+        //if best solution is a TeleportDestination something went wrong!
+#if SMART_PATHFINDING_DEBUG
+        PathfindingLibPlugin.Instance.Logger.LogFatal($"Something went wrong. index is {bestIndex}/{linkCount}");
+#endif
+        return -1;
+
+        void UpdateNode(int index)
+        {
+            ref var node = ref nodes[index];
+
+            var heapIndex = heap.FindIndex(e => e.index == index);
+
+            if (heapIndex != -1)
+            {
+                heap.RemoveAt(heapIndex);
+            }
+
+            if (!Mathf.Approximately(node.g, node.rhs))
+            {
+                heap.AddOrdered((index, node.CalculateKey()), heapComparer);
+            }
+        }
     }
 
     public void Execute()
     {
 #if SMART_PATHFINDING_DEBUG
-        PathfindingLibPlugin.Instance.Logger.LogInfo($"Start {origin} -> {destination} --------");
+        PathfindingLibPlugin.Instance.Logger.LogInfo($"Start {start} -> {goal} --------");
 #endif
+        var nodes = ArrayPool<PathNode>.Shared.Rent(linkCount + destinationCount + 2);
 
-        var result = CalculatePath();
+        PrepareData(nodes);
+
+        ref var startNode = ref nodes[linkCount + destinationCount];
+        ref var goalNode = ref nodes[linkCount + destinationCount + 1];
+
+        if (startNode.succ.Count == 0)
+        {
+#if SMART_PATHFINDING_DEBUG
+            PathfindingLibPlugin.Instance.Logger.LogInfo("Path failed, start position is isolated");
+#endif
+            destinationIndex[0] = -1;
+        }else if (goalNode.pred.Count == 0)
+        {
+#if SMART_PATHFINDING_DEBUG
+            PathfindingLibPlugin.Instance.Logger.LogInfo("Path failed, goal position is isolated");
+#endif
+            destinationIndex[0] = -1;
+        }
+        else
+        {
+            var result = CalculatePath(nodes);
 
 #if SMART_PATHFINDING_DEBUG
-        if (result == -1)
-            PathfindingLibPlugin.Instance.Logger.LogInfo($"Path failed");
-        else if (result == linkCount)
-            PathfindingLibPlugin.Instance.Logger.LogInfo($"Completed direct path");
-        else
-            PathfindingLibPlugin.Instance.Logger.LogInfo($"Completed path with index {result} ({SmartPathJobDataContainer.linkNames[result]})");
+
+            PrintCurrPath(nodes);
+
+            if (result == -1)
+                PathfindingLibPlugin.Instance.Logger.LogInfo("Path failed");
+            else if (result == linkCount)
+                PathfindingLibPlugin.Instance.Logger.LogInfo("Completed direct path");
+            else
+                PathfindingLibPlugin.Instance.Logger.LogInfo($"Completed path with index {result} ({SmartPathJobDataContainer.linkNames[result]})");
 #endif
 
-        destinationIndex[0] = result;
+            destinationIndex[0] = result;
+        }
+
+        ReleaseData(nodes);
+        ArrayPool<PathNode>.Shared.Return(nodes);
     }
+
+#if SMART_PATHFINDING_DEBUG
+    private void PrintCurrPath(PathNode[] nodes)
+    {
+        var startIndex = nodeCount - 2;
+        var goalIndex = nodeCount - 1;
+        ref var startNode = ref nodes[startIndex];
+
+        var currIndex = startIndex;
+        var builder = new StringBuilder("Path:\n");
+
+        while (true)
+        {
+            ref var currNode = ref nodes[currIndex];
+
+            builder.AppendFormat(" - distance: {0:0.###}", currNode.g);
+            if (currIndex == startIndex)
+                builder.AppendFormat(" Start {0}\n", start);
+            else if (currIndex == goalIndex)
+                builder.AppendFormat(" Goal {0}\n", start);
+            else if (currIndex < linkCount)
+                builder.AppendFormat(" {0}\n", SmartPathJobDataContainer.linkNames[currIndex]);
+            else if (currIndex >= linkCount && currIndex < linkCount + destinationCount)
+                builder.AppendFormat(" linkDestination {0}\n", linkDestinations[currIndex - linkCount]);
+            else
+                builder.AppendFormat(" ??? ({0})\n", currIndex);
+
+            if (currIndex == goalIndex)
+                break;
+
+            var bestIndex = -1;
+            var minCost = float.PositiveInfinity;
+
+            foreach (var (succIndex, cost) in currNode.succ)
+            {
+                ref var succNode = ref nodes[succIndex];
+                var newCost = cost + succNode.g;
+
+                if (newCost >= minCost)
+                    continue;
+
+                minCost = newCost;
+                bestIndex = succIndex;
+            }
+
+            if (bestIndex == -1)
+                break;
+
+            currIndex = bestIndex;
+        }
+
+        PathfindingLibPlugin.Instance.Logger.LogDebug(builder.ToString());
+    }
+#endif
 
     public void Dispose()
     {
