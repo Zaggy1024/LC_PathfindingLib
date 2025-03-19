@@ -1,8 +1,10 @@
-﻿#define SMART_PATHFINDING_DEBUG
+//#define SMART_PATHFINDING_DEBUG
 
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics;
+
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
@@ -14,7 +16,6 @@ using PathfindingLib.API;
 using PathfindingLib.API.SmartPathfinding;
 using PathfindingLib.Utilities;
 using PathfindingLib.Utilities.Collections;
-using UnityEngine.Rendering;
 
 #if BENCHMARKING
 using Unity.Profiling;
@@ -155,7 +156,7 @@ public struct SmartFindPathJob : IJob, IDisposable
         return distance;
     }
 
-    private record PathLink(int index, float cost)
+    private record struct PathLink(int index, float cost)
     {
         internal int index = index;
         internal float cost = cost;
@@ -168,11 +169,11 @@ public struct SmartFindPathJob : IJob, IDisposable
 #endif
     }
 
-    private struct PathVertex: IDisposable
+    private struct PathVertex : IDisposable
     {
         internal bool isValid;
-        internal List<PathLink> pred;
-        internal List<PathLink> succ;
+        internal UnsafeList<PathLink> pred;
+        internal UnsafeList<PathLink> succ;
 
         internal int index;
 
@@ -180,22 +181,19 @@ public struct SmartFindPathJob : IJob, IDisposable
         internal float g;
         internal float rhs;
 
-        // ReSharper disable once ParameterHidesMember
-        public void Initialize(int index)
+        public void Initialize(int index, int verticesCount)
         {
             if (isValid)
                 Dispose();
 
-            this.pred = ListPool<PathLink>.Get();
-            this.pred.Clear();
-            this.succ = ListPool<PathLink>.Get();
-            this.succ.Clear();
+            pred = new UnsafeList<PathLink>(verticesCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+            succ = new UnsafeList<PathLink>(verticesCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
 
             this.index = index;
 
-            this.heuristic = float.PositiveInfinity;
-            this.g = float.PositiveInfinity;
-            this.rhs = float.PositiveInfinity;
+            heuristic = float.PositiveInfinity;
+            g = float.PositiveInfinity;
+            rhs = float.PositiveInfinity;
 
             isValid = true;
         }
@@ -203,10 +201,10 @@ public struct SmartFindPathJob : IJob, IDisposable
         public void Dispose()
         {
             isValid = false;
-            ListPool<PathLink>.Release(pred);
-            pred = null;
-            ListPool<PathLink>.Release(succ);
-            succ = null;
+            pred.Dispose();
+            pred = default;
+            succ.Dispose();
+            succ = default;
             heuristic = float.NaN;
             g = float.NaN;
             rhs = float.NaN;
@@ -309,7 +307,7 @@ public struct SmartFindPathJob : IJob, IDisposable
         for (var i = 0; i < vertexCount; i++)
         {
             ref var vertex = ref pathVertices[i];
-            vertex.Initialize(i);
+            vertex.Initialize(i, vertexCount);
         }
 
         ref var goalVertex = ref pathVertices[goalIndex];
@@ -577,6 +575,8 @@ public struct SmartFindPathJob : IJob, IDisposable
         }
 #endif
 
+        var stopwatch = Stopwatch.StartNew();
+
         var pathVertices = ArrayPool<PathVertex>.Shared.Rent(vertexCount);
 
         PopulateVertices(pathVertices);
@@ -588,13 +588,13 @@ public struct SmartFindPathJob : IJob, IDisposable
         ref var startVertex = ref pathVertices[linkCount + destinationCount];
         ref var goalVertex = ref pathVertices[linkCount + destinationCount + 1];
 
-        if (startVertex.succ.Count == 0)
+        if (startVertex.succ.Length == 0)
         {
 #if SMART_PATHFINDING_DEBUG
             PathfindingLibPlugin.Instance.Logger.LogInfo("Path failed, start position is isolated");
 #endif
             destinationIndex[0] = -1;
-        }else if (goalVertex.pred.Count == 0)
+        }else if (goalVertex.pred.Length == 0)
         {
 #if SMART_PATHFINDING_DEBUG
             PathfindingLibPlugin.Instance.Logger.LogInfo("Path failed, goal position is isolated");
@@ -606,7 +606,6 @@ public struct SmartFindPathJob : IJob, IDisposable
             var result = CalculatePath(pathVertices);
 
 #if SMART_PATHFINDING_DEBUG
-
             PrintCurrPath(pathVertices);
 
             if (result == -1)
@@ -626,6 +625,8 @@ public struct SmartFindPathJob : IJob, IDisposable
 #endif
 
         ReleaseVertices(pathVertices);
+
+        PathfindingLibPlugin.Instance.Logger.LogInfo($"Path took {stopwatch.Elapsed.TotalMilliseconds}ms");
     }
 
 #if SMART_PATHFINDING_DEBUG
