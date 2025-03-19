@@ -2,7 +2,7 @@
 
 namespace PathfindingLib.Utilities.Collections;
 
-public static class ColectionExtensions
+public static class CollectionExtensions
 {
     public static int AddOrdered<T>(this List<T> self, T item, IComparer<T> comparer = default)
     {
