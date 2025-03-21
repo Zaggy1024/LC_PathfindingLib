@@ -30,7 +30,7 @@ public class SmartPathTask : IDisposable
     internal static SmartPathTask StartPathTask(Vector3 origin, Vector3 destination, NavMeshAgent agent)
     {
         var task = new SmartPathTask(origin, destination);
-        task.job.Initialize(task.jobData, origin, destination, agent);
+        task.job.Initialize(task.jobData, origin, new Vector3[] { destination }, agent);
         task.jobHandle = task.job.ScheduleByRef();
         return task;
     }
@@ -47,7 +47,7 @@ public class SmartPathTask : IDisposable
             if (!IsComplete)
                 throw new InvalidOperationException("Job is not complete.");
 
-            var index = job.destinationIndex[0];
+            var index = job.firstNodeIndices[0];
 
             if (index == -1)
                 return null;
