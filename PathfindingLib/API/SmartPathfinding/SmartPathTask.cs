@@ -1,14 +1,11 @@
-﻿using System.Collections.Generic;
+﻿using System;
 
+using Unity.Jobs;
+using UnityEngine.AI;
 using UnityEngine;
 
 using PathfindingLib.API.Smart;
 using PathfindingLib.Jobs;
-using System;
-
-using Unity.Jobs;
-using UnityEngine.AI;
-using System.Linq;
 
 namespace PathfindingLib.API.SmartPathfinding;
 
@@ -65,6 +62,6 @@ public class SmartPathTask : IDisposable
     public void Dispose()
     {
         SmartPathJobDataContainer.ReleaseJobData(ref jobData);
-        job.Dispose();
+        job.FreeAllResources();
     }
 }
