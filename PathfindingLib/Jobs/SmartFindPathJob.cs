@@ -697,7 +697,18 @@ public struct SmartFindPathJob : IJob
         DebugVertices[goal] = new DebugVertex[vertexCount];
         for (var i = 0; i < vertexCount; i++)
         {
-            DebugVertices[goal][i] = new DebugVertex(ref vertices, i);
+            var vertexType = "OutOfRange";
+            if (i > StartIndex) {}
+            else if (i == StartIndex)
+                vertexType = "Start";
+            else if (i >= LinkDestinationsOffset)
+                vertexType = "LinkDestination";
+            else if (i >= GoalsOffset)
+                vertexType = "Goal";
+            else if (i >= 0)
+                vertexType = "LinkOrigin";
+
+            DebugVertices[goal][i] = new DebugVertex(ref vertices, i, vertexType);
         }
     }
 
@@ -709,6 +720,7 @@ public struct SmartFindPathJob : IJob
         internal readonly PathLink[] succ;
 
         internal readonly int index;
+        internal readonly string type;
 
         internal readonly float heuristic;
         internal readonly float g;
@@ -717,10 +729,13 @@ public struct SmartFindPathJob : IJob
         internal readonly PathVertex.VertexKey key;
         internal readonly PathLink nextLink;
 
-        internal DebugVertex(ref NativeArray<PathVertex> vertices, int index)
+        internal DebugVertex(ref NativeArray<PathVertex> vertices, int index, string type)
         {
-
             ref var src = ref vertices.GetRef(index);
+
+            this.index = src.index;
+
+            this.type = type;
 
             var oldList = src.pred;
             pred = new PathLink[oldList.Length];
@@ -734,8 +749,6 @@ public struct SmartFindPathJob : IJob
             {
                 succ[i] = oldList[i];
             }
-
-            this.index = src.index;
 
             heuristic = src.heuristic;
             g = src.g;
@@ -766,7 +779,7 @@ public struct SmartFindPathJob : IJob
         {
             if (!valid)
                 return "Not Initialized!";
-            return $"{nameof(index)}: {index}, {nameof(g)}: {g:0.###}, {nameof(rhs)}: {rhs:0.###}";
+            return $"{type} {nameof(index)}: {index}, {nameof(g)}: {g:0.###}, {nameof(rhs)}: {rhs:0.###}";
         }
     }
 #endif
