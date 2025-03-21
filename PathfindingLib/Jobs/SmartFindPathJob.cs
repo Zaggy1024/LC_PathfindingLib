@@ -15,6 +15,14 @@ using PathfindingLib.API;
 using PathfindingLib.API.SmartPathfinding;
 using PathfindingLib.Utilities;
 using PathfindingLib.Utilities.Collections;
+using System.Linq;
+using System.Runtime.ExceptionServices;
+using static ES3Spreadsheet;
+using Steamworks.Data;
+
+
+
+
 
 #if BENCHMARKING
 using Unity.Profiling;
@@ -28,7 +36,7 @@ namespace PathfindingLib.Jobs;
 
 public struct SmartFindPathJob : IJob, IDisposable
 {
-    private const int MaxExtraIterations = 30;
+    private const int MaxPathsToTest = 30;
 
     [ReadOnly, NativeDisableContainerSafetyRestriction] private NativeArray<NavMeshQuery> ThreadQueriesRef;
 
@@ -43,8 +51,6 @@ public struct SmartFindPathJob : IJob, IDisposable
     [ReadOnly] private int destinationCount;
 
     [ReadOnly] private int vertexCount;
-    [ReadOnly] private int startIndex;
-    [ReadOnly] private int goalIndex;
 
     [ReadOnly, NativeSetThreadIndex] private int threadIndex;
 
@@ -70,8 +76,6 @@ public struct SmartFindPathJob : IJob, IDisposable
         destinationCount = data.destinationCount;
 
         vertexCount = linkCount + destinationCount + 2;
-        startIndex = vertexCount - 2;
-        goalIndex = vertexCount - 1;
 
         destinationIndex = new NativeArray<int>(1, Allocator.Persistent);
         destinationIndex[0] = -1;
@@ -80,6 +84,11 @@ public struct SmartFindPathJob : IJob, IDisposable
 #if BENCHMARKING
     private static readonly ProfilerMarker CalculateSinglePathMarker = new("CalculateSinglePath");
 #endif
+
+    private readonly int LinkOriginsEndIndex => linkCount;
+    private readonly int LinkDestinationsEndIndex => linkCount + destinationCount;
+    private readonly int StartIndex => vertexCount - 2;
+    private readonly int GoalIndex => vertexCount - 1;
 
     private float CalculateSinglePath(Vector3 origin, Vector3 destination)
     {
@@ -166,7 +175,8 @@ public struct SmartFindPathJob : IJob, IDisposable
         internal UnsafeList<PathLink> pred;
         internal UnsafeList<PathLink> succ;
 
-        internal readonly int index;
+        internal int index;
+        internal NativeHeapIndex heapIndex;
 
         internal float heuristic;
         internal float g;
@@ -178,6 +188,7 @@ public struct SmartFindPathJob : IJob, IDisposable
             succ = new UnsafeList<PathLink>(verticesCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
 
             this.index = index;
+            heapIndex = NativeHeapIndex.Invalid;
 
             heuristic = float.PositiveInfinity;
             g = float.PositiveInfinity;
@@ -264,16 +275,16 @@ public struct SmartFindPathJob : IJob, IDisposable
         if (vertexIndex < 0)
             throw new IndexOutOfRangeException("Index cannot be negative.");
 
-        if (vertexIndex < linkCount)
+        if (vertexIndex < LinkOriginsEndIndex)
             return linkOrigins[vertexIndex];
 
-        if (vertexIndex < linkCount + destinationCount)
+        if (vertexIndex < LinkDestinationsEndIndex)
             return linkDestinations[vertexIndex - linkCount];
 
-        if (vertexIndex == startIndex)
+        if (vertexIndex == StartIndex)
             return start;
 
-        if (vertexIndex == goalIndex)
+        if (vertexIndex == GoalIndex)
             return goal;
 
         throw new IndexOutOfRangeException($"Index {vertexIndex} is out of range.");
@@ -284,18 +295,17 @@ public struct SmartFindPathJob : IJob, IDisposable
         for (var i = 0; i < vertexCount; i++)
             pathVertices[i] = new(i, vertexCount);
 
-        ref var goalVertex = ref pathVertices.GetRef(goalIndex);
+        ref var goalVertex = ref pathVertices.GetRef(GoalIndex);
 
         for (var i = 0; i < vertexCount; i++)
         {
             ref var vertex = ref pathVertices.GetRef(i);
             var vertexPosition = GetVertexPosition(i);
 
-            if (i < linkCount) //if this index is an origin
+            if (i < LinkOriginsEndIndex)
             {
+                // Connect all link origins to their destinations.
                 vertex.heuristic = (vertexPosition - start).magnitude;
-
-                //connect all its destinations
 
                 var slice = linkDestinationSlices[i];
 
@@ -303,7 +313,6 @@ public struct SmartFindPathJob : IJob, IDisposable
                 {
                     var destIndex = linkCount + j;
 
-                    //TODO add costs! it's important the cost is never 0 or less
                     var traverseCost = 0.0001f;
 
                     ref var destinationVertex = ref pathVertices.GetRef(destIndex);
@@ -311,10 +320,10 @@ public struct SmartFindPathJob : IJob, IDisposable
                     destinationVertex.pred.Add(new PathLink(i, traverseCost));
                     vertex.succ.Add(new PathLink(destIndex, traverseCost));
                 }
-
             }
-            else if (i < linkCount + destinationCount) //if this is a destination
+            else if (i < LinkDestinationsEndIndex) //if this is a destination
             {
+                // Connect all link destinations to all links' origins.
                 vertex.heuristic = (vertexPosition - start).magnitude;
 
                 //try path to all origins
@@ -343,10 +352,10 @@ public struct SmartFindPathJob : IJob, IDisposable
                     continue;
 
                 goalVertex.pred.Add(new PathLink(i, goalCost));
-                vertex.succ.Add(new PathLink(goalIndex, goalCost));
+                vertex.succ.Add(new PathLink(GoalIndex, goalCost));
 
             }
-            else if (i == startIndex) //if this index is our start point
+            else if (i == StartIndex) //if this index is our start point
             {
                 vertex.heuristic = 0;
 
@@ -376,9 +385,9 @@ public struct SmartFindPathJob : IJob, IDisposable
                     continue;
 
                 goalVertex.pred.Add(new PathLink(i, goalCost));
-                vertex.succ.Add(new PathLink(goalIndex, goalCost));
+                vertex.succ.Add(new PathLink(GoalIndex, goalCost));
             }
-            else if (i == goalIndex) //if this index is our goal
+            else if (i == GoalIndex) //if this index is our goal
             {
                 vertex.heuristic = (goal - start).magnitude;
             }
@@ -399,48 +408,60 @@ public struct SmartFindPathJob : IJob, IDisposable
 
     private readonly int CalculatePath(NativeArray<PathVertex> pathVertices)
     {
-        ref var startVertex = ref pathVertices.GetRef(startIndex);
-        ref var goalVertex = ref pathVertices.GetRef(goalIndex);
+        ref var startVertex = ref pathVertices.GetRef(StartIndex);
+        ref var goalVertex = ref pathVertices.GetRef(GoalIndex);
 
         goalVertex.rhs = 0;
         var heapComparer = new HeapElementComparer();
-        var heap = new UnsafeList<HeapElement>(vertexCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory)
-        {
-            new(goalIndex, goalVertex.CalculateKey()),
-        };
+
+        var heap = new NativeHeap<HeapElement, HeapElementComparer>(Allocator.Temp, vertexCount, heapComparer);
+        goalVertex.heapIndex = heap.Insert(new(GoalIndex, goalVertex.CalculateKey()));
 
         var iterations = 0;
         var extraIterations = 0;
 
-        while (heap.Length > 0)
+        void UpdateOrAddVertex(ref PathVertex vertex)
+        {
+            if (vertex.heapIndex.IsValid)
+            {
+                var removed = heap.Remove(vertex.heapIndex);
+                vertex.heapIndex = NativeHeapIndex.Invalid;
+            }
+            if (!Mathf.Approximately(vertex.g, vertex.rhs))
+                vertex.heapIndex = heap.Insert(new(vertex.index, vertex.CalculateKey()));
+        }
+
+        while (heap.Count > 0)
         {
             iterations += 1;
-            var (index, oldKey) = heap[0];
+            var (index, oldKey) = heap.Peek();
             ref var currentVertex = ref pathVertices.GetRef(index);
 
-            //if we have found a path
-            if (oldKey >= startVertex.CalculateKey() && startVertex.rhs <= startVertex.g)
-                //try to compute a few extra times in hope of finding a better path
-                if (extraIterations++ >= MaxExtraIterations)
-                    break;
+            // If we've found a successful path, check more subsequent successful paths, within a limit.
+            if (oldKey >= startVertex.CalculateKey() && startVertex.rhs <= startVertex.g && extraIterations++ > MaxPathsToTest)
+                break;
 
             var newKey = currentVertex.CalculateKey();
 
             if (oldKey < newKey)
             {
-                //update heap
-                heap.RemoveAt(0);
-                heap.AddOrdered(new(index, newKey), heapComparer);
+                // If the new key is worse than the old one, reinsert into the list, sorting by the new key.
+                heap.Pop();
+                currentVertex.heapIndex = heap.Insert(new(index, newKey));
             }
             else if (currentVertex.g > currentVertex.rhs)
             {
+                // Found a better path towards the current vertex.
                 currentVertex.g = currentVertex.rhs;
-                heap.RemoveAt(0);
+
+                heap.Pop();
+                currentVertex.heapIndex = NativeHeapIndex.Invalid;
+
                 foreach (var (predIndex, cost) in currentVertex.pred)
                 {
                     ref var predVertex = ref pathVertices.GetRef(predIndex);
 
-                    if (predIndex != goalIndex)
+                    if (predIndex != GoalIndex)
                     {
 
                         var newRhs = cost + currentVertex.g;
@@ -449,12 +470,12 @@ public struct SmartFindPathJob : IJob, IDisposable
                             predVertex.rhs = newRhs;
                     }
 
-                    UpdateVertex(ref predVertex);
+                    UpdateOrAddVertex(ref predVertex);
                 }
             }
             else
             {
-                // Path is dead end
+                // We've encountered a loop
                 var gOld = currentVertex.g;
                 currentVertex.g = float.PositiveInfinity;
 
@@ -463,7 +484,6 @@ public struct SmartFindPathJob : IJob, IDisposable
                     ref var predVertex = ref pathVertices.GetRef(predIndex);
                     if (predIndex != goalIndex)
                     {
-
                         if (Mathf.Approximately(predVertex.rhs, predCost + gOld))
                         {
                             var minRhs = float.PositiveInfinity;
@@ -482,22 +502,22 @@ public struct SmartFindPathJob : IJob, IDisposable
                         }
                     }
 
-                    UpdateVertex(ref predVertex);
+                    UpdateOrAddVertex(ref predVertex);
                 }
 
                 foreach (var (predIndex, predCost) in currentVertex.pred)
-                    RecalculateRHS(goalIndex, predIndex, predCost);
+                    RecalculateRHS(GoalIndex, predIndex, predCost);
 
-                RecalculateRHS(goalIndex, index, 0);
+                RecalculateRHS(GoalIndex, index, 0);
             }
         }
 
 #if SMART_PATHFINDING_DEBUG
         PathfindingLibPlugin.Instance.Logger.LogDebug($"Found path after {iterations - extraIterations} iterations, then searched for an extra {extraIterations} iterations");
 #endif
-        //after computing
 
-        if (float.IsInfinity(startVertex.rhs)) //no path found!
+        // No path was found.
+        if (float.IsInfinity(startVertex.rhs))
             return -1;
 
         var bestIndex = -1;
@@ -515,30 +535,15 @@ public struct SmartFindPathJob : IJob, IDisposable
             bestIndex = succIndex;
         }
 
-        //if the best solution is a direct path
-        if (bestIndex == goalIndex)
+        // Return one greater than the possible nodes if we've gotten a direct path to the destination.
+        if (bestIndex == GoalIndex)
             return linkCount;
 
         if (bestIndex < linkCount)
             return bestIndex;
 
-        //if best solution is a TeleportDestination something went wrong!
-#if SMART_PATHFINDING_DEBUG
-        PathfindingLibPlugin.Instance.Logger.LogFatal($"Something went wrong. index is {bestIndex}/{linkCount}");
-#endif
+        PathfindingLibPlugin.Instance.Logger.LogFatal($"Smart pathfinding job found a best path that was a link destination. This should not be possible. Index = {bestIndex}, link count = {linkCount}");
         return -1;
-
-        void UpdateVertex(ref PathVertex vertex)
-        {
-            var index = vertex.index;
-            var heapIndex = heap.FindIndex(e => e.index == index);
-
-            if (heapIndex != -1)
-                heap.RemoveAt(heapIndex);
-
-            if (!Mathf.Approximately(vertex.g, vertex.rhs))
-                heap.AddOrdered(new(index, vertex.CalculateKey()), heapComparer);
-        }
     }
 
     private void DisposeVertices(ref NativeArray<PathVertex> vertices)
@@ -562,8 +567,8 @@ public struct SmartFindPathJob : IJob, IDisposable
 
         PopulateVertices(pathVertices);
 
-        ref var startVertex = ref pathVertices.GetRef(startIndex);
-        ref var goalVertex = ref pathVertices.GetRef(goalIndex);
+        ref var startVertex = ref pathVertices.GetRef(StartIndex);
+        ref var goalVertex = ref pathVertices.GetRef(GoalIndex);
 
         if (startVertex.succ.Length == 0)
         {
@@ -605,7 +610,7 @@ public struct SmartFindPathJob : IJob, IDisposable
 #if SMART_PATHFINDING_DEBUG
     private void PrintCurrPath(NativeArray<PathVertex> pathVertices)
     {
-        var currIndex = startIndex;
+        var currIndex = StartIndex;
         var builder = new StringBuilder("Path:\n");
 
         while (true)
@@ -613,18 +618,18 @@ public struct SmartFindPathJob : IJob, IDisposable
             ref var currVertex = ref pathVertices.GetRef(currIndex);
 
             builder.AppendFormat(" - distance: {0:0.###}", currVertex.g);
-            if (currIndex == startIndex)
-                builder.AppendFormat(" Start {0}\n", start);
-            else if (currIndex == goalIndex)
-                builder.AppendFormat(" Goal {0}\n", start);
-            else if (currIndex < linkCount)
+            if (currIndex < linkCount)
                 builder.AppendFormat(" {0}\n", SmartPathJobDataContainer.linkNames[currIndex]);
-            else if (currIndex >= linkCount && currIndex < linkCount + destinationCount)
+            else if (currIndex < linkCount + destinationCount)
                 builder.AppendFormat(" linkDestination {0}\n", linkDestinations[currIndex - linkCount]);
+            else if (currIndex == GoalIndex)
+                builder.AppendFormat(" Goal {0}\n", start);
+            else if (currIndex == StartIndex)
+                builder.AppendFormat(" Start {0}\n", start);
             else
                 builder.AppendFormat(" ??? ({0})\n", currIndex);
 
-            if (currIndex == goalIndex)
+            if (currIndex == GoalIndex)
                 break;
 
             var bestIndex = -1;

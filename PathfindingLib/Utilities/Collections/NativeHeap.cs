@@ -32,13 +32,17 @@ using static Unity.Collections.LowLevel.Unsafe.UnsafeUtility;
 
 namespace PathfindingLib.Utilities.Collections;
 
-public struct NativeHeapIndex
+internal struct NativeHeapIndex
 {
+    internal static readonly NativeHeapIndex Invalid = new() { TableIndex = -1 };
+
     internal int TableIndex;
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
     internal int Version;
     internal int StructureId;
 #endif
+
+    internal readonly bool IsValid => TableIndex >= 0;
 }
 
 /// <summary>
@@ -64,19 +68,19 @@ public struct NativeHeapIndex
 [NativeContainer]
 [DebuggerDisplay("Count = {Count}")]
 [StructLayout(LayoutKind.Sequential)]
-public struct NativeHeap<T, U> : IDisposable
+internal struct NativeHeap<T, U> : IDisposable
     where T : unmanaged
     where U : unmanaged, IComparer<T>
 {
     #region API
 
-    public const int DEFAULT_CAPACITY = 128;
+    internal const int DEFAULT_CAPACITY = 128;
 
     /// <summary>
     /// Returns the number of elements that this collection can hold before the private structures
     /// need to be reallocated.
     /// </summary>
-    public int Capacity
+    internal int Capacity
     {
         get
         {
@@ -132,7 +136,7 @@ public struct NativeHeap<T, U> : IDisposable
     /// <summary>
     /// Returns the number of elements currently contained inside this collection.
     /// </summary>
-    public int Count
+    internal int Count
     {
         get
         {
@@ -150,7 +154,7 @@ public struct NativeHeap<T, U> : IDisposable
     /// Gets or sets the comparator used for this Heap. Note that you can only set the comparator
     /// when the Heap is empty.
     /// </summary>
-    public U Comparator
+    internal U Comparator
     {
         get
         {
@@ -193,7 +197,7 @@ public struct NativeHeap<T, U> : IDisposable
     /// You can optionally specify the comparator used to order the elements in this collection.  The Pop operation will
     /// always return the smallest element according to the ordering specified by this comparator.
     /// </param>
-    public NativeHeap(Allocator allocator, int initialCapacity = DEFAULT_CAPACITY, U comparator = default) :
+    internal NativeHeap(Allocator allocator, int initialCapacity = DEFAULT_CAPACITY, U comparator = default) :
         this(initialCapacity, comparator, allocator, disposeSentinelStackDepth: 1)
     { }
 
@@ -207,7 +211,7 @@ public struct NativeHeap<T, U> : IDisposable
         unsafe
         {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-                DisposeSentinel.Dispose(ref m_Safety, ref m_DisposeSentinel);
+            DisposeSentinel.Dispose(ref m_Safety, ref m_DisposeSentinel);
 #endif
 
             Data->Count = 0;
@@ -223,7 +227,7 @@ public struct NativeHeap<T, U> : IDisposable
     /// Removes all elements from this container.  Any NativeHeapIndex structures obtained will be
     /// invalidated and cannot be used again.
     /// </summary>
-    public void Clear()
+    internal void Clear()
     {
         unsafe
         {
@@ -246,7 +250,7 @@ public struct NativeHeap<T, U> : IDisposable
     /// 
     /// This method will always return true if Unity safety checks is turned off.
     /// </summary>
-    public bool IsValidIndex(NativeHeapIndex index)
+    internal bool IsValidIndex(NativeHeapIndex index)
     {
         var isValid = true;
         var errorCode = 0;
@@ -260,7 +264,7 @@ public struct NativeHeap<T, U> : IDisposable
     /// This method will never throw if Unity safety checks is turned off.
     /// </summary>
     [Conditional("ENABLE_UNITY_COLLECTIONS_CHECKS")]
-    public void AssertValidIndex(NativeHeapIndex index)
+    internal void AssertValidIndex(NativeHeapIndex index)
     {
         var isValid = true;
         var errorCode = 0;
@@ -291,7 +295,7 @@ public struct NativeHeap<T, U> : IDisposable
     /// 
     /// This method will throw an InvalidOperationException if the collection is empty.
     /// </summary>
-    public T Peek()
+    internal T Peek()
     {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
         AtomicSafetyHandle.CheckReadAndThrow(m_Safety);
@@ -313,7 +317,7 @@ public struct NativeHeap<T, U> : IDisposable
     /// 
     /// This method will return true if an element could be obtained, or false if the container is empty.
     /// </summary>
-    public bool TryPeek(out T t)
+    internal bool TryPeek(out T t)
     {
         unsafe
         {
@@ -344,7 +348,7 @@ public struct NativeHeap<T, U> : IDisposable
     /// 
     /// This method will throw an InvalidOperationException if the collection is empty.
     /// </summary>
-    public T Pop()
+    internal T Pop()
     {
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
         AtomicSafetyHandle.CheckWriteAndThrow(m_Safety);
@@ -365,7 +369,7 @@ public struct NativeHeap<T, U> : IDisposable
     /// 
     /// This method will return true if an element could be obtained, or false if the container is empty.
     /// </summary>
-    public bool TryPop(out T t)
+    internal bool TryPop(out T t)
     {
         unsafe
         {
@@ -413,7 +417,7 @@ public struct NativeHeap<T, U> : IDisposable
     /// 
     /// This method is an O(log(n)) operation.
     /// </summary>
-    public NativeHeapIndex Insert(in T t)
+    internal NativeHeapIndex Insert(in T t)
     {
         unsafe
         {
@@ -454,7 +458,7 @@ public struct NativeHeap<T, U> : IDisposable
     /// 
     /// This method is an O(log(n)) operation.
     /// </summary>
-    public T Remove(NativeHeapIndex index)
+    internal T Remove(NativeHeapIndex index)
     {
         unsafe
         {
@@ -491,6 +495,24 @@ public struct NativeHeap<T, U> : IDisposable
             InsertAndBubbleDown(lastNode, indexToRemove);
 
             return toRemove.Item;
+        }
+    }
+
+    /// <summary>
+    /// Gets the element contained at this NativeHeapIndex.
+    /// </summary>
+    internal T Get(NativeHeapIndex index)
+    {
+        unsafe
+        {
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+            AtomicSafetyHandle.CheckWriteAndThrow(m_Safety);
+
+            AssertValidIndex(index);
+#endif
+            int indexInStorage = Data->Table[index.TableIndex].HeapIndex;
+            HeapNode<T> node = Data->Heap[indexInStorage];
+            return node.Item;
         }
     }
 
@@ -571,7 +593,7 @@ public struct NativeHeap<T, U> : IDisposable
             }
 
             if (indexR >= Data->Count || Data->Comparator.Compare(Data->Heap[indexL].Item,
-                                                                    Data->Heap[indexR].Item) <= 0)
+                                                                  Data->Heap[indexR].Item) <= 0)
             {
                 //left is smaller (or the only child)
                 var leftNode = Data->Heap[indexL];
@@ -669,9 +691,9 @@ public struct NativeHeap<T, U> : IDisposable
 [StructLayout(LayoutKind.Sequential)]
 internal unsafe struct TableValue
 {
-    public int HeapIndex;
+    internal int HeapIndex;
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-    public int Version;
+    internal int Version;
 #endif
 }
 
@@ -679,17 +701,17 @@ internal unsafe struct TableValue
 internal unsafe struct HeapData<T, U>
     where T : unmanaged
 {
-    public int Count;
-    public int Capacity;
-    public unsafe HeapNode<T>* Heap;
-    public unsafe TableValue* Table;
-    public U Comparator;
+    internal int Count;
+    internal int Capacity;
+    internal unsafe HeapNode<T>* Heap;
+    internal unsafe TableValue* Table;
+    internal U Comparator;
 }
 
 [StructLayout(LayoutKind.Sequential)]
 internal unsafe struct HeapNode<T>
     where T : unmanaged
 {
-    public T Item;
-    public int TableIndex;
+    internal T Item;
+    internal int TableIndex;
 }
