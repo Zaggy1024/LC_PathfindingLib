@@ -394,7 +394,7 @@ public struct SmartFindPathJob : IJob
         internal readonly PathVertex.VertexKey key = key;
     }
 
-    private readonly int CalculatePath(NativeArray<PathVertex> pathVertices, int goalIndex, out float totalPathLength)
+    private readonly int CalculatePath(NativeArray<PathVertex> pathVertices, NativeHeap<HeapElement, HeapElementComparer> heap, int goalIndex, out float totalPathLength)
     {
         for (var i = 0; i < vertexCount; i++)
         {
@@ -407,9 +407,8 @@ public struct SmartFindPathJob : IJob
         ref var goalVertex = ref pathVertices.GetRef(goalIndex);
 
         goalVertex.rhs = 0;
-        var heapComparer = new HeapElementComparer();
 
-        var heap = new NativeHeap<HeapElement, HeapElementComparer>(Allocator.Temp, vertexCount, heapComparer);
+        heap.Clear();
         goalVertex.heapIndex = heap.Insert(new(goalIndex, goalVertex.CalculateKey()));
 
         var iterations = 0;
@@ -577,6 +576,9 @@ public struct SmartFindPathJob : IJob
             return;
         }
 
+        var heapComparer = new HeapElementComparer();
+        var heap = new NativeHeap<HeapElement, HeapElementComparer>(Allocator.Temp, vertexCount, heapComparer);
+
         for (var goalIndex = 0; goalIndex < goalCount; goalIndex++)
         {
             var goalVertexIndex = GoalsOffset + goalIndex;
@@ -594,6 +596,7 @@ public struct SmartFindPathJob : IJob
             }
 
             var result = CalculatePath(pathVertices, goalVertexIndex, out var pathLength);
+            var result = CalculatePath(pathVertices, heap, goalVertexIndex, out var pathLength);
 
 #if SMART_PATHFINDING_DEBUG
             if (captureNextVertices)
@@ -612,6 +615,8 @@ public struct SmartFindPathJob : IJob
             firstNodeIndices[goalIndex] = result;
             pathLengths[goalIndex] = pathLength;
         }
+
+        heap.Dispose();
 
         DisposeVertices(ref pathVertices);
 
