@@ -124,7 +124,7 @@ public struct SmartFindPathJob : IJob
     private readonly int LinkDestinationsOffset => linkCount + goalCount;
     private readonly int StartIndex => vertexCount - 1;
 
-    private float CalculateSinglePath(Vector3 origin, Vector3 destination)
+    private float CalculateSinglePath(Vector3 origin, Vector3 target)
     {
         var query = ThreadQueriesRef[threadIndex];
 
@@ -140,7 +140,7 @@ public struct SmartFindPathJob : IJob
             return float.PositiveInfinity;
 
         var destinationExtents = SharedJobValues.DestinationExtents;
-        var destinationLocation = query.MapLocation(destination, destinationExtents, agentTypeID, areaMask);
+        var destinationLocation = query.MapLocation(target, destinationExtents, agentTypeID, areaMask);
         if (!query.IsValid(destinationLocation))
             return float.PositiveInfinity;
 
@@ -169,7 +169,7 @@ public struct SmartFindPathJob : IJob
         query.GetPathResult(pathNodes);
 
         using var path = new NativeArray<NavMeshLocation>(NavMeshQueryUtils.RecommendedCornerCount, Allocator.Temp);
-        var straightPathStatus = NavMeshQueryUtils.FindStraightPath(query, origin, destination, pathNodes, pathNodesSize, path, out var pathSize);
+        var straightPathStatus = NavMeshQueryUtils.FindStraightPath(query, origin, target, pathNodes, pathNodesSize, path, out var pathSize);
         pathNodes.Dispose();
 
         // ReSharper disable once DisposeOnUsingVariable
@@ -180,7 +180,7 @@ public struct SmartFindPathJob : IJob
 
         // Check if the end of the path is close enough to the target.
         var pathEnd = path[pathSize - 1].position;
-        var endDistance = (pathEnd - destination).sqrMagnitude;
+        var endDistance = (pathEnd - target).sqrMagnitude;
         if (endDistance > SharedJobValues.MaximumEndpointDistanceSquared)
             return float.PositiveInfinity;
 
@@ -191,118 +191,76 @@ public struct SmartFindPathJob : IJob
         return distance;
     }
 
-    private record struct PathEdge(int sourceIndex, int destIndex, float cost)
+    public void Execute()
     {
-        internal int source = sourceIndex;
-        internal int dest = destIndex;
-        internal float cost = cost;
+#if SMART_PATHFINDING_DEBUG
+        if (captureNextVertices)
+            InitVerticesCapture();
+#endif
+
+        var stopwatch = Stopwatch.StartNew();
+
+        var pathVertices = new NativeArray<PathVertex>(vertexCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+
+        PopulateVertices(pathVertices);
+
+        ref var startVertex = ref pathVertices.GetRef(StartIndex);
+        if (startVertex.succ.Length == 0)
+        {
+#if SMART_PATHFINDING_DEBUG
+            PathfindingLibPlugin.Instance.Logger.LogInfo("Path failed, start position is isolated.");
+#endif
+            return;
+        }
+
+        var heapComparer = new HeapElementComparer();
+        var heap = new NativeHeap<HeapElement, HeapElementComparer>(Allocator.Temp, vertexCount, heapComparer);
+
+        for (var goalIndex = 0; goalIndex < goalCount; goalIndex++)
+        {
+            var goalVertexIndex = GoalsOffset + goalIndex;
+            ref var goalVertex = ref pathVertices.GetRef(goalVertexIndex);
+
+            if (goalVertex.pred.Length == 0)
+            {
+#if SMART_PATHFINDING_DEBUG
+                if (captureNextVertices)
+                    CaptureVerticesSnapshot(ref pathVertices, goalIndex);
+
+                PathfindingLibPlugin.Instance.Logger.LogInfo("Path failed, goal position is isolated");
+#endif
+                continue;
+            }
+
+            var result = CalculatePath(pathVertices, heap, goalVertexIndex, out var pathLength);
 
 #if SMART_PATHFINDING_DEBUG
-        public readonly override string ToString()
-        {
-            return $"{source}->{dest} {nameof(cost)}:{cost:0.###}";
-        }
+            if (captureNextVertices)
+                CaptureVerticesSnapshot(ref pathVertices, goalIndex);
+
+            PrintCurrPath(pathVertices);
+
+            if (result == -1)
+                PathfindingLibPlugin.Instance.Logger.LogInfo($"Path for goal {goalIndex} failed.");
+            else if (result == linkCount)
+                PathfindingLibPlugin.Instance.Logger.LogInfo($"Path for goal {goalIndex} was a direct path with length {pathLength}.");
+            else
+                PathfindingLibPlugin.Instance.Logger.LogInfo($"Path for goal {goalIndex} was an indirect path through link index {result} ({SmartPathJobDataContainer.linkNames[result]}).");
 #endif
-    }
 
-    private struct PathVertex : IDisposable
-    {
-        internal UnsafeList<PathEdge> pred;
-        internal UnsafeList<PathEdge> succ;
-
-        internal int index;
-        internal NativeHeapIndex heapIndex;
-
-        internal float heuristic;
-        internal float g;
-        internal float rhs;
-
-        internal PathVertex(int index, int maxCount)
-        {
-            pred = new UnsafeList<PathEdge>(maxCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
-            succ = new UnsafeList<PathEdge>(maxCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
-
-            this.index = index;
-            heapIndex = NativeHeapIndex.Invalid;
-
-            heuristic = float.PositiveInfinity;
-            g = float.PositiveInfinity;
-            rhs = float.PositiveInfinity;
+            firstNodeIndices[goalIndex] = result;
+            pathLengths[goalIndex] = pathLength;
         }
 
-        public void Dispose()
-        {
-            pred.Dispose();
-            pred = default;
-            succ.Dispose();
-            succ = default;
+        heap.Dispose();
 
-            heuristic = float.NaN;
-            g = float.NaN;
-            rhs = float.NaN;
-        }
+        DisposeVertices(ref pathVertices);
 
-        internal readonly record struct VertexKey(float key1, float key2) : IComparable<VertexKey>
-        {
-            private readonly float key1 = key1;
-            private readonly float key2 = key2;
-
-            public readonly int CompareTo(VertexKey other)
-            {
-                var key1Comparison = key1.CompareTo(other.key1);
-                return key1Comparison != 0 ? key1Comparison : key2.CompareTo(other.key2);
-            }
-
-            public static bool operator <(VertexKey left, VertexKey right)
-            {
-                return left.CompareTo(right) < 0;
-            }
-
-            public static bool operator >(VertexKey left, VertexKey right)
-            {
-                return left.CompareTo(right) > 0;
-            }
-
-            public static bool operator <=(VertexKey left, VertexKey right)
-            {
-                return left.CompareTo(right) <= 0;
-            }
-
-            public static bool operator >=(VertexKey left, VertexKey right)
-            {
-                return left.CompareTo(right) >= 0;
-            }
+        PathfindingLibPlugin.Instance.Logger.LogInfo($"Job took {stopwatch.Elapsed.TotalMilliseconds}ms");
 
 #if SMART_PATHFINDING_DEBUG
-            public readonly override string ToString()
-            {
-                return $"[{key1:0.###}, {key2:0.###}]";
-            }
+        captureNextVertices = false;
 #endif
-        }
-
-        public readonly VertexKey CalculateKey()
-        {
-            var key2 = Mathf.Min(g, rhs);
-            var key1 = key2 + heuristic;
-
-            return new VertexKey(key1, key2);
-        }
-
-#if SMART_PATHFINDING_DEBUG
-        public readonly override string ToString()
-        {
-            return $"{nameof(index)}: {index}, {nameof(g)}: {g:0.###}, {nameof(rhs)}: {rhs:0.###}";
-        }
-#endif
-    }
-
-    private readonly struct HeapElementComparer : IComparer<HeapElement>
-    {
-        public readonly int Compare(HeapElement x, HeapElement y)
-        {
-            return x.key.CompareTo(y.key);
-        }
     }
 
     private Vector3 GetVertexPosition(int vertexIndex)
@@ -386,12 +344,6 @@ public struct SmartFindPathJob : IJob
 #endif
             }
         }
-    }
-
-    private readonly record struct HeapElement(int index, PathVertex.VertexKey key)
-    {
-        internal readonly int index = index;
-        internal readonly PathVertex.VertexKey key = key;
     }
 
     private readonly int CalculatePath(NativeArray<PathVertex> pathVertices, NativeHeap<HeapElement, HeapElementComparer> heap, int goalIndex, out float totalPathLength)
@@ -554,77 +506,124 @@ public struct SmartFindPathJob : IJob
         vertices = default;
     }
 
-    public void Execute()
+    private record struct PathEdge(int sourceIndex, int destIndex, float cost)
     {
+        internal int source = sourceIndex;
+        internal int dest = destIndex;
+        internal float cost = cost;
+
 #if SMART_PATHFINDING_DEBUG
-        if (captureNextVertices)
-            InitVerticesCapture();
-#endif
-
-        var stopwatch = Stopwatch.StartNew();
-
-        var pathVertices = new NativeArray<PathVertex>(vertexCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
-
-        PopulateVertices(pathVertices);
-
-        ref var startVertex = ref pathVertices.GetRef(StartIndex);
-        if (startVertex.succ.Length == 0)
+        public readonly override string ToString()
         {
-#if SMART_PATHFINDING_DEBUG
-            PathfindingLibPlugin.Instance.Logger.LogInfo("Path failed, start position is isolated.");
+            return $"{source}->{dest} {nameof(cost)}:{cost:0.###}";
+        }
 #endif
-            return;
+    }
+
+    private struct PathVertex : IDisposable
+    {
+        internal UnsafeList<PathEdge> pred;
+        internal UnsafeList<PathEdge> succ;
+
+        internal int index;
+        internal NativeHeapIndex heapIndex;
+
+        internal float heuristic;
+        internal float g;
+        internal float rhs;
+
+        internal PathVertex(int index, int maxCount)
+        {
+            pred = new UnsafeList<PathEdge>(maxCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+            succ = new UnsafeList<PathEdge>(maxCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+
+            this.index = index;
+            heapIndex = NativeHeapIndex.Invalid;
+
+            heuristic = float.PositiveInfinity;
+            g = float.PositiveInfinity;
+            rhs = float.PositiveInfinity;
         }
 
-        var heapComparer = new HeapElementComparer();
-        var heap = new NativeHeap<HeapElement, HeapElementComparer>(Allocator.Temp, vertexCount, heapComparer);
-
-        for (var goalIndex = 0; goalIndex < goalCount; goalIndex++)
+        public void Dispose()
         {
-            var goalVertexIndex = GoalsOffset + goalIndex;
-            ref var goalVertex = ref pathVertices.GetRef(goalVertexIndex);
+            pred.Dispose();
+            pred = default;
+            succ.Dispose();
+            succ = default;
 
-            if (goalVertex.pred.Length == 0)
+            heuristic = float.NaN;
+            g = float.NaN;
+            rhs = float.NaN;
+        }
+
+        internal readonly record struct VertexKey(float key1, float key2) : IComparable<VertexKey>
+        {
+            private readonly float key1 = key1;
+            private readonly float key2 = key2;
+
+            public readonly int CompareTo(VertexKey other)
             {
-#if SMART_PATHFINDING_DEBUG
-                if (captureNextVertices)
-                    CaptureVerticesSnapshot(ref pathVertices, goalIndex);
-
-                PathfindingLibPlugin.Instance.Logger.LogInfo("Path failed, goal position is isolated");
-#endif
-                continue;
+                var key1Comparison = key1.CompareTo(other.key1);
+                return key1Comparison != 0 ? key1Comparison : key2.CompareTo(other.key2);
             }
 
-            var result = CalculatePath(pathVertices, goalVertexIndex, out var pathLength);
-            var result = CalculatePath(pathVertices, heap, goalVertexIndex, out var pathLength);
+            public static bool operator <(VertexKey left, VertexKey right)
+            {
+                return left.CompareTo(right) < 0;
+            }
+
+            public static bool operator >(VertexKey left, VertexKey right)
+            {
+                return left.CompareTo(right) > 0;
+            }
+
+            public static bool operator <=(VertexKey left, VertexKey right)
+            {
+                return left.CompareTo(right) <= 0;
+            }
+
+            public static bool operator >=(VertexKey left, VertexKey right)
+            {
+                return left.CompareTo(right) >= 0;
+            }
 
 #if SMART_PATHFINDING_DEBUG
-            if (captureNextVertices)
-                CaptureVerticesSnapshot(ref pathVertices, goalIndex);
-
-            PrintCurrPath(pathVertices);
-
-            if (result == -1)
-                PathfindingLibPlugin.Instance.Logger.LogInfo($"Path for goal {goalIndex} failed.");
-            else if (result == linkCount)
-                PathfindingLibPlugin.Instance.Logger.LogInfo($"Path for goal {goalIndex} was a direct path with length {pathLength}.");
-            else
-                PathfindingLibPlugin.Instance.Logger.LogInfo($"Path for goal {goalIndex} was an indirect path through link index {result} ({SmartPathJobDataContainer.linkNames[result]}).");
+            public readonly override string ToString()
+            {
+                return $"[{key1:0.###}, {key2:0.###}]";
+            }
 #endif
-
-            firstNodeIndices[goalIndex] = result;
-            pathLengths[goalIndex] = pathLength;
         }
 
-        heap.Dispose();
+        public readonly VertexKey CalculateKey()
+        {
+            var key2 = Mathf.Min(g, rhs);
+            var key1 = key2 + heuristic;
 
-        DisposeVertices(ref pathVertices);
-
-        PathfindingLibPlugin.Instance.Logger.LogInfo($"Path took {stopwatch.Elapsed.TotalMilliseconds}ms");
+            return new VertexKey(key1, key2);
+        }
 
 #if SMART_PATHFINDING_DEBUG
-        captureNextVertices = false;
+        public readonly override string ToString()
+        {
+            return $"{nameof(index)}: {index}, {nameof(g)}: {g:0.###}, {nameof(rhs)}: {rhs:0.###}";
+        }
 #endif
+    }
+
+    private readonly record struct HeapElement(int index, PathVertex.VertexKey key)
+    {
+        internal readonly int index = index;
+        internal readonly PathVertex.VertexKey key = key;
+    }
+
+    private readonly struct HeapElementComparer : IComparer<HeapElement>
+    {
+        public readonly int Compare(HeapElement x, HeapElement y)
+        {
+            return x.key.CompareTo(y.key);
+        }
     }
 
 #if SMART_PATHFINDING_DEBUG
