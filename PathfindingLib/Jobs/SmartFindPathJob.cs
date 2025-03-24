@@ -69,7 +69,6 @@ public struct SmartFindPathJob : IJob
 
         // Shhhh, compiler...
         threadIndex = -1;
-        currentGoalIndex = 0;
 
         linkOrigins = data.linkOrigins;
         linkDestinationSlices = data.linkDestinationSlices;
@@ -133,9 +132,7 @@ public struct SmartFindPathJob : IJob
     private readonly int StartVertexIndex => vertexCount - 2;
     private readonly int GoalVertexIndex => vertexCount - 1;
 
-    private int currentGoalIndex;
-
-    private float CalculateSinglePath(Vector3 origin, Vector3 destination)
+    private readonly float CalculateSinglePath(Vector3 origin, Vector3 destination)
     {
         var query = ThreadQueriesRef[threadIndex];
 
@@ -212,13 +209,14 @@ public struct SmartFindPathJob : IJob
         var jobStopwatch = Stopwatch.StartNew();
         var goalStopwatch = new Stopwatch();
 
-        currentGoalIndex = 0;
         var memory = new PathfinderMemory(vertexCount);
         PopulateVertices(memory);
 
         for (var goalIndex = 0; goalIndex < goalCount; goalIndex++)
         {
-            SetNetGoal(memory, goalIndex);
+            goalStopwatch.Restart();
+
+            SetNewGoal(memory, goalIndex);
 
             if (!memory.HasSuccessors(StartVertexIndex, in this))
             {
@@ -254,7 +252,7 @@ public struct SmartFindPathJob : IJob
             if (captureNextVertices)
                 CaptureVerticesSnapshot(memory, goalIndex);
 
-            PrintCurrPath(memory);
+            PrintCurrPath(memory, goalIndex);
 
             if (result.linkIndex == -1)
                 PathfindingLibPlugin.Instance.Logger.LogInfo($"Path for goal {goalIndex} failed.");
@@ -269,20 +267,20 @@ public struct SmartFindPathJob : IJob
 
         memory.Dispose();
 
-        PathfindingLibPlugin.Instance.Logger.LogInfo($"Job took {jobStopwatch.Elapsed.TotalMilliseconds}ms.");
+        PathfindingLibPlugin.Instance.Logger.LogWarning($"Job took {jobStopwatch.Elapsed.TotalMilliseconds}ms.");
 
 #if SMART_PATHFINDING_DEBUG
         captureNextVertices = false;
 #endif
     }
 
-    private Vector3 GetVertexPosition(int vertexIndex)
+    private readonly Vector3 GetVertexPosition(int vertexIndex)
     {
         if (vertexIndex > vertexCount)
             throw new IndexOutOfRangeException($"Index {vertexIndex} is out of range.");
 
         if (vertexIndex == GoalVertexIndex)
-            return goals[currentGoalIndex];
+            throw new NotImplementedException("Should never get called for the goal");
 
         if (vertexIndex == StartVertexIndex)
             return start;
@@ -306,7 +304,7 @@ public struct SmartFindPathJob : IJob
             if (i >= LinkDestinationsOffset)
             {
                 // Connect the start and all link destinations to all links' origins.
-                vertex.heuristic = (vertexPosition - start).magnitude;
+                vertex.heuristic = (start - vertexPosition).magnitude;
 
                 for (var j = 0; j < linkCount; j++)
                 {
@@ -318,7 +316,7 @@ public struct SmartFindPathJob : IJob
             else if (i >= 0)
             {
                 // Connect all link origins to their destinations.
-                vertex.heuristic = (vertexPosition - start).magnitude;
+                vertex.heuristic = (start - vertexPosition).magnitude;
 
                 var slice = linkDestinationSlices[i];
 
@@ -346,26 +344,40 @@ public struct SmartFindPathJob : IJob
         }
     }
 
-    private void SetNetGoal(PathfinderMemory memory, int newGoalIndex)
+    private void SetNewGoal(PathfinderMemory memory, int goalIndex)
     {
-        currentGoalIndex = newGoalIndex;
         for (var i = LinkDestinationsOffset; i < vertexCount; i++)
         {
+            var goalPosition = goals[goalIndex];
+
             ref var vertex = ref memory.GetVertex(i);
-            var vertexPosition = GetVertexPosition(i);
+            var vertexPosition = (i != GoalVertexIndex) ? GetVertexPosition(i) : goalPosition;
 
             if (i == GoalVertexIndex)
             {
-                vertex.heuristic = (vertexPosition - start).magnitude;
+                vertex.heuristic = (start - goalPosition).magnitude;
             }
             else
             {
                 ref var edge = ref memory.GetEdge(i, GoalVertexIndex);
 
                 edge.isValid = true;
-                edge.cost = float.NaN;
+                //pre-compute costs to goals so we can remove the field
+                edge.cost = CalculateSinglePath(vertexPosition, goalPosition);
             }
         }
+    }
+
+    private static void UpdateOrAddVertex(PathfinderMemory memory, ref PathVertex vertex)
+    {
+        var heap = memory.heap;
+        if (vertex.heapIndex.IsValid)
+        {
+            heap.Remove(vertex.heapIndex);
+            vertex.heapIndex = NativeHeapIndex.Invalid;
+        }
+        if (!Mathf.Approximately(vertex.g, vertex.rhs))
+            vertex.heapIndex = heap.Insert(new HeapElement(vertex.index, vertex.CalculateKey()));
     }
 
     private readonly PathResult CalculatePath(PathfinderMemory memory)
@@ -389,17 +401,6 @@ public struct SmartFindPathJob : IJob
 
         var iterations = 0;
         var extraIterations = 0;
-
-        void UpdateOrAddVertex(ref PathVertex vertex)
-        {
-            if (vertex.heapIndex.IsValid)
-            {
-                heap.Remove(vertex.heapIndex);
-                vertex.heapIndex = NativeHeapIndex.Invalid;
-            }
-            if (!Mathf.Approximately(vertex.g, vertex.rhs))
-                vertex.heapIndex = heap.Insert(new HeapElement(vertex.index, vertex.CalculateKey()));
-        }
 
         while (heap.Count > 0)
         {
@@ -440,7 +441,7 @@ public struct SmartFindPathJob : IJob
                             predecessorVertex.rhs = newRhs;
                     }
 
-                    UpdateOrAddVertex(ref predecessorVertex);
+                    UpdateOrAddVertex(memory, ref predecessorVertex);
                 });
             }
             else
@@ -450,6 +451,7 @@ public struct SmartFindPathJob : IJob
                 var gOld = currentVertex.g;
                 currentVertex.g = float.PositiveInfinity;
 
+                memory.CalculatePredecessors(index, in this);
                 memory.ForEachPredecessor(index, (in PathEdge edge) =>
                 {
                     RecalculateRHS(edge.source, edge.cost);
@@ -480,7 +482,7 @@ public struct SmartFindPathJob : IJob
                         }
                     }
 
-                    UpdateOrAddVertex(ref predVertex);
+                    UpdateOrAddVertex(memory, ref predVertex);
                 }
             }
         }
@@ -825,16 +827,15 @@ public struct SmartFindPathJob : IJob
     }
 
 #if SMART_PATHFINDING_DEBUG
-    private void PrintCurrPath(PathfinderMemory memory)
+    private void PrintCurrPath(PathfinderMemory memory, int goalIndex)
     {
         var currIndex = StartVertexIndex;
         var pathCost = 0f;
+        var last_g = float.PositiveInfinity;
         var builder = new StringBuilder("Path:\n");
 
         while (true)
         {
-            ref var currVertex = ref memory.GetVertex(currIndex);
-
             builder.AppendFormat(" - distance: {0:0.###}", pathCost);
             if (currIndex > GoalVertexIndex)
             {
@@ -843,7 +844,7 @@ public struct SmartFindPathJob : IJob
             }
             else if (currIndex == GoalVertexIndex)
             {
-                builder.AppendFormat(" Goal {0}\n", start);
+                builder.AppendFormat(" Goal {0}\n", goals[goalIndex]);
                 break;
             }
             else if (currIndex == StartVertexIndex)
@@ -874,6 +875,16 @@ public struct SmartFindPathJob : IJob
 
             pathCost += cost;
             currIndex = bestIndex;
+
+            ref var vertex = ref memory.GetVertex(currIndex);
+
+            if (vertex.g > last_g)
+            {
+                builder.AppendFormat(" Loop! ({0})\n", currIndex);
+                break;
+            }
+
+            last_g = vertex.g;
         }
 
         PathfindingLibPlugin.Instance.Logger.LogInfo(builder.ToString());
@@ -894,7 +905,7 @@ public struct SmartFindPathJob : IJob
         for (var i = 0; i < vertexCount; i++)
         {
             var vertexType = "OutOfRange";
-            if (i > StartVertexIndex)
+            if (i > GoalVertexIndex)
                 vertexType = "OutOfRange";
             else if (i == GoalVertexIndex)
                 vertexType = "Goal";
