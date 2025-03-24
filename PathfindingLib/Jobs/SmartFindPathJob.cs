@@ -509,9 +509,9 @@ public struct SmartFindPathJob : IJob
 
             for (var i = 0; i < vertexCount * vertexCount; i++)
             {
-                var row = i / vertexCount;
-                var column = i % vertexCount;
-                edges[i] = new PathEdge(row, column);
+                var destination = i / vertexCount;
+                var source = i % vertexCount;
+                edges[i] = new PathEdge(source, destination);
 
                 if (i >= vertexCount)
                     continue;
@@ -643,9 +643,9 @@ public struct SmartFindPathJob : IJob
             return result;
         }
 
-        internal readonly ref PathEdge GetEdge(int start, int destination)
+        internal readonly ref PathEdge GetEdge(int source, int destination)
         {
-            return ref edges.GetRef(start * vertexCount + destination);
+            return ref edges.GetRef(destination * vertexCount + source);
         }
         internal readonly ref PathVertex GetVertex(int vertexIndex)
         {
