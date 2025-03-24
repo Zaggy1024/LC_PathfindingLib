@@ -197,72 +197,84 @@ public struct SmartFindPathJob : IJob
     {
 #if SMART_PATHFINDING_DEBUG
         if (captureNextVertices)
-            InitVerticesCapture();
+            InitVerticesCapture(goalCount);
 #endif
 
         var jobStopwatch = Stopwatch.StartNew();
         var goalStopwatch = new Stopwatch();
 
         var memory = new PathfinderMemory(vertexCount);
-
-        PopulateVertices(memory);
-
-        if (!memory.GetSuccessorIndexes(StartIndex).Any())
+        try
         {
-#if SMART_PATHFINDING_DEBUG
-            PathfindingLibPlugin.Instance.Logger.LogInfo("Path failed, start position is isolated.");
-#endif
-            return;
-        }
+            PopulateVertices(memory);
 
-        for (var goalIndex = 0; goalIndex < goalCount; goalIndex++)
-        {
-            var goalVertexIndex = GoalsOffset + goalIndex;
-
-            if (!memory.GetPredecessorIndexes(goalVertexIndex).Any())
+            if (!memory.GetSuccessors(StartIndex, this).Any())
             {
+#if SMART_PATHFINDING_DEBUG
+                if (captureNextVertices)
+                {
+                    InitVerticesCapture(1);
+                    CaptureVerticesSnapshot(memory, 0);
+                }
+
+                PathfindingLibPlugin.Instance.Logger.LogInfo("Path failed, start position is isolated.");
+#endif
+                return;
+            }
+
+            for (var goalIndex = 0; goalIndex < goalCount; goalIndex++)
+            {
+                var goalVertexIndex = GoalsOffset + goalIndex;
+
+                if (!memory.GetPredecessors(goalVertexIndex, this).Any())
+                {
+#if SMART_PATHFINDING_DEBUG
+                    if (captureNextVertices)
+                        CaptureVerticesSnapshot(memory, goalIndex);
+
+                    PathfindingLibPlugin.Instance.Logger.LogInfo("Path failed, goal position is isolated");
+#endif
+                    continue;
+                }
+
+                goalStopwatch.Restart();
+
+                var result = CalculatePath(memory, goalVertexIndex, out var pathLength);
+
+                goalStopwatch.Stop();
+
+                PathfindingLibPlugin.Instance.Logger.LogInfo(
+                    $"Path to Goal{goalIndex} took {goalStopwatch.Elapsed.TotalMilliseconds}ms");
+
 #if SMART_PATHFINDING_DEBUG
                 if (captureNextVertices)
                     CaptureVerticesSnapshot(memory, goalIndex);
 
-                PathfindingLibPlugin.Instance.Logger.LogInfo("Path failed, goal position is isolated");
+                PrintCurrPath(memory);
+
+                if (result == -1)
+                    PathfindingLibPlugin.Instance.Logger.LogInfo($"Path for goal {goalIndex} failed.");
+                else if (result == linkCount)
+                    PathfindingLibPlugin.Instance.Logger.LogInfo(
+                        $"Path for goal {goalIndex} was a direct path with length {pathLength}.");
+                else
+                    PathfindingLibPlugin.Instance.Logger.LogInfo(
+                        $"Path for goal {goalIndex} was an indirect path through link index {result} ({SmartPathJobDataContainer.linkNames[result]}).");
 #endif
-                continue;
+
+                firstNodeIndices[goalIndex] = result;
+                pathLengths[goalIndex] = pathLength;
             }
+        }finally{
 
-            goalStopwatch.Restart();
+            memory.Dispose();
 
-            var result = CalculatePath(memory, goalVertexIndex, out var pathLength);
-
-            goalStopwatch.Stop();
-
-            PathfindingLibPlugin.Instance.Logger.LogInfo($"Path to Goal{goalIndex} took {goalStopwatch.Elapsed.TotalMilliseconds}ms");
+            PathfindingLibPlugin.Instance.Logger.LogInfo($"Job took {jobStopwatch.Elapsed.TotalMilliseconds}ms");
 
 #if SMART_PATHFINDING_DEBUG
-            if (captureNextVertices)
-                CaptureVerticesSnapshot(memory, goalIndex);
-
-            PrintCurrPath(memory);
-
-            if (result == -1)
-                PathfindingLibPlugin.Instance.Logger.LogInfo($"Path for goal {goalIndex} failed.");
-            else if (result == linkCount)
-                PathfindingLibPlugin.Instance.Logger.LogInfo($"Path for goal {goalIndex} was a direct path with length {pathLength}.");
-            else
-                PathfindingLibPlugin.Instance.Logger.LogInfo($"Path for goal {goalIndex} was an indirect path through link index {result} ({SmartPathJobDataContainer.linkNames[result]}).");
+            captureNextVertices = false;
 #endif
-
-            firstNodeIndices[goalIndex] = result;
-            pathLengths[goalIndex] = pathLength;
         }
-
-        memory.Dispose();
-
-        PathfindingLibPlugin.Instance.Logger.LogInfo($"Job took {jobStopwatch.Elapsed.TotalMilliseconds}ms");
-
-#if SMART_PATHFINDING_DEBUG
-        captureNextVertices = false;
-#endif
     }
 
     private Vector3 GetVertexPosition(int vertexIndex)
@@ -305,7 +317,7 @@ public struct SmartFindPathJob : IJob
                     edge.isValid = true;
 
                     //TODO: only calculate when needed
-                    edge.CalculateCostIfMissing(this);
+                    //edge.CalculateCostIfMissing(this);
                 }
             }
             else if (i >= GoalsOffset)
@@ -402,7 +414,7 @@ public struct SmartFindPathJob : IJob
                 heap.Pop();
                 currentVertex.heapIndex = NativeHeapIndex.Invalid;
 
-                foreach (var (predIndex, _, cost) in memory.GetPredecessors(index))
+                foreach (var (predIndex, _, cost) in memory.GetPredecessors(index, this))
                 {
                     ref var predVertex = ref memory.GetVertexRef(predIndex);
 
@@ -531,7 +543,7 @@ public struct SmartFindPathJob : IJob
             initialized = true;
         }
 
-        internal readonly IEnumerable<int> GetPredecessorIndexes(int vertexIndex)
+        internal readonly IEnumerable<int> GetPotentialPredecessorIndexes(int vertexIndex)
         {
             if (vertexIndex > vertexCount)
                 yield break;
@@ -546,7 +558,8 @@ public struct SmartFindPathJob : IJob
                 yield return i;
             }
         }
-        internal readonly IEnumerable<PathEdge> GetPredecessors(int vertexIndex)
+
+        internal readonly IEnumerable<PathEdge> GetPredecessors(int vertexIndex, SmartFindPathJob? job = null)
         {
             if (vertexIndex > vertexCount)
                 yield break;
@@ -555,14 +568,22 @@ public struct SmartFindPathJob : IJob
 
             for (var i = 0; i < vertexCount; i++)
             {
-                var edge = edges[i * vertexCount + vertexIndex];
+                ref var edge = ref GetEdgeRef(i * vertexCount + vertexIndex);
                 if (!edge.isValid)
+                    continue;
+
+                if (job.HasValue)
+                    edge.CalculateCostIfMissing(job.Value);
+
+                if (float.IsNaN(edge.cost))
+                    continue;
+                if (float.IsInfinity(edge.cost))
                     continue;
                 yield return edge;
             }
         }
 
-        internal readonly IEnumerable<int> GetSuccessorIndexes(int vertexIndex)
+        internal readonly IEnumerable<int> GetPotentialSuccessorIndexes(int vertexIndex)
         {
             if (vertexIndex > vertexCount)
                 yield break;
@@ -578,7 +599,7 @@ public struct SmartFindPathJob : IJob
             }
         }
 
-        internal readonly IEnumerable<PathEdge> GetSuccessors(int vertexIndex)
+        internal readonly IEnumerable<PathEdge> GetSuccessors(int vertexIndex, SmartFindPathJob? job = null)
         {
             if (vertexIndex > vertexCount)
                 yield break;
@@ -587,8 +608,16 @@ public struct SmartFindPathJob : IJob
 
             for (var i = 0; i < vertexCount; i++)
             {
-                var edge = edges[vertexIndex * vertexCount + i];
+                ref var edge = ref GetEdgeRef(vertexIndex * vertexCount + i);
                 if (!edge.isValid)
+                    continue;
+
+                if (job.HasValue)
+                    edge.CalculateCostIfMissing(job.Value);
+
+                if (float.IsNaN(edge.cost))
+                    continue;
+                if (float.IsInfinity(edge.cost))
                     continue;
                 yield return edge;
             }
@@ -842,9 +871,9 @@ public struct SmartFindPathJob : IJob
 
     private static bool captureNextVertices;
 
-    private void InitVerticesCapture()
+    private void InitVerticesCapture(int count)
     {
-        DebugVertices = new DebugVertex[goalCount][];
+        DebugVertices = new DebugVertex[count][];
     }
 
     private void CaptureVerticesSnapshot(PathfinderMemory memory, int goal)
@@ -892,8 +921,8 @@ public struct SmartFindPathJob : IJob
 
             this.type = type;
 
-            pred = memory.GetPredecessors(index).ToArray();
-            succ = memory.GetSuccessors(index).ToArray();
+            pred = memory.GetPotentialPredecessorIndexes(index).Select(edgeIndex => memory.edges[edgeIndex]).ToArray();
+            succ = memory.GetPotentialSuccessorIndexes(index).Select(edgeIndex => memory.edges[edgeIndex]).ToArray();
 
             heuristic = src.heuristic;
             g = src.g;
