@@ -776,13 +776,14 @@ public struct SmartFindPathJob : IJob
     private void PrintCurrPath(PathfinderMemory memory)
     {
         var currIndex = StartIndex;
+        var pathCost = 0f;
         var builder = new StringBuilder("Path:\n");
 
         while (true)
         {
             ref var currVertex = ref memory.GetVertexRef(currIndex);
 
-            builder.AppendFormat(" - distance: {0:0.###}", currVertex.g);
+            builder.AppendFormat(" - distance: {0:0.###}", pathCost);
             if (currIndex > StartIndex)
             {
                 builder.AppendFormat(" ??? ({0})\n", currIndex);
@@ -829,6 +830,7 @@ public struct SmartFindPathJob : IJob
             if (bestIndex == -1)
                 break;
 
+            pathCost += minCost;
             currIndex = bestIndex;
         }
 
