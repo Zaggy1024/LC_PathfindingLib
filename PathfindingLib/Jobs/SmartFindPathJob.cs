@@ -299,7 +299,7 @@ public struct SmartFindPathJob : IJob
 
             if (i >= LinkDestinationsOffset)
             {
-                // Connect the start and all link destinations to all links' origins...
+                // Connect the start and all link destinations to all links' origins and the goals.
                 vertex.heuristic = (vertexPosition - start).magnitude;
 
                 for (var j = 0; j < LinkDestinationsOffset; j++)
