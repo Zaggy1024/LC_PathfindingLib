@@ -200,7 +200,8 @@ public struct SmartFindPathJob : IJob
             InitVerticesCapture();
 #endif
 
-        var stopwatch = Stopwatch.StartNew();
+        var jobStopwatch = Stopwatch.StartNew();
+        var goalStopwatch = new Stopwatch();
 
         var memory = new PathfinderMemory(vertexCount);
 
@@ -229,7 +230,13 @@ public struct SmartFindPathJob : IJob
                 continue;
             }
 
+            goalStopwatch.Restart();
+
             var result = CalculatePath(memory, goalVertexIndex, out var pathLength);
+
+            goalStopwatch.Stop();
+
+            PathfindingLibPlugin.Instance.Logger.LogInfo($"Path to Goal{goalIndex} took {goalStopwatch.Elapsed.TotalMilliseconds}ms");
 
 #if SMART_PATHFINDING_DEBUG
             if (captureNextVertices)
@@ -251,7 +258,7 @@ public struct SmartFindPathJob : IJob
 
         memory.Dispose();
 
-        PathfindingLibPlugin.Instance.Logger.LogInfo($"Job took {stopwatch.Elapsed.TotalMilliseconds}ms");
+        PathfindingLibPlugin.Instance.Logger.LogInfo($"Job took {jobStopwatch.Elapsed.TotalMilliseconds}ms");
 
 #if SMART_PATHFINDING_DEBUG
         captureNextVertices = false;
