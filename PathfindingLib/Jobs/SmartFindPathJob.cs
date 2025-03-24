@@ -3,7 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-
+using System.Linq;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
@@ -29,6 +29,7 @@ namespace PathfindingLib.Jobs;
 public struct SmartFindPathJob : IJob
 {
     private const int MaxPathsToTest = 30;
+    private const float MinEdgeCost = 0.0001f;
 
     [ReadOnly, NativeDisableContainerSafetyRestriction] private NativeArray<NavMeshQuery> ThreadQueriesRef;
 
@@ -200,12 +201,11 @@ public struct SmartFindPathJob : IJob
 
         var stopwatch = Stopwatch.StartNew();
 
-        var pathVertices = new NativeArray<PathVertex>(vertexCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+        var memory = new PathfinderMemory(vertexCount);
 
-        PopulateVertices(pathVertices);
+        PopulateVertices(memory);
 
-        ref var startVertex = ref pathVertices.GetRef(StartIndex);
-        if (startVertex.succ.Length == 0)
+        if (!memory.GetSuccessorIndexes(StartIndex).Any())
         {
 #if SMART_PATHFINDING_DEBUG
             PathfindingLibPlugin.Instance.Logger.LogInfo("Path failed, start position is isolated.");
@@ -213,32 +213,28 @@ public struct SmartFindPathJob : IJob
             return;
         }
 
-        var heapComparer = new HeapElementComparer();
-        var heap = new NativeHeap<HeapElement, HeapElementComparer>(Allocator.Temp, vertexCount, heapComparer);
-
         for (var goalIndex = 0; goalIndex < goalCount; goalIndex++)
         {
             var goalVertexIndex = GoalsOffset + goalIndex;
-            ref var goalVertex = ref pathVertices.GetRef(goalVertexIndex);
 
-            if (goalVertex.pred.Length == 0)
+            if (!memory.GetPredecessorIndexes(goalVertexIndex).Any())
             {
 #if SMART_PATHFINDING_DEBUG
                 if (captureNextVertices)
-                    CaptureVerticesSnapshot(ref pathVertices, goalIndex);
+                    CaptureVerticesSnapshot(memory, goalIndex);
 
                 PathfindingLibPlugin.Instance.Logger.LogInfo("Path failed, goal position is isolated");
 #endif
                 continue;
             }
 
-            var result = CalculatePath(pathVertices, heap, goalVertexIndex, out var pathLength);
+            var result = CalculatePath(memory, goalVertexIndex, out var pathLength);
 
 #if SMART_PATHFINDING_DEBUG
             if (captureNextVertices)
-                CaptureVerticesSnapshot(ref pathVertices, goalIndex);
+                CaptureVerticesSnapshot(memory, goalIndex);
 
-            PrintCurrPath(pathVertices);
+            PrintCurrPath(memory);
 
             if (result == -1)
                 PathfindingLibPlugin.Instance.Logger.LogInfo($"Path for goal {goalIndex} failed.");
@@ -252,9 +248,7 @@ public struct SmartFindPathJob : IJob
             pathLengths[goalIndex] = pathLength;
         }
 
-        heap.Dispose();
-
-        DisposeVertices(ref pathVertices);
+        memory.Dispose();
 
         PathfindingLibPlugin.Instance.Logger.LogInfo($"Job took {stopwatch.Elapsed.TotalMilliseconds}ms");
 
@@ -283,15 +277,12 @@ public struct SmartFindPathJob : IJob
         throw new IndexOutOfRangeException("Index cannot be negative.");
     }
 
-    private void PopulateVertices(NativeArray<PathVertex> pathVertices)
+    private void PopulateVertices(PathfinderMemory memory)
     {
-        for (var i = 0; i < vertexCount; i++){
-            pathVertices[i] = new PathVertex(i, vertexCount);
-        }
 
         for (var i = 0; i < vertexCount; i++)
         {
-            ref var vertex = ref pathVertices.GetRef(i);
+            ref var vertex = ref memory.GetVertexRef(i);
             var vertexPosition = GetVertexPosition(i);
 
             if (i >= LinkDestinationsOffset)
@@ -301,16 +292,12 @@ public struct SmartFindPathJob : IJob
 
                 for (var j = 0; j < LinkDestinationsOffset; j++)
                 {
-                    var originPos = GetVertexPosition(j);
-                    ref var originVertex = ref pathVertices.GetRef(j);
+                    ref var edge = ref memory.GetEdgeRef(i, j);
 
-                    var cost = CalculateSinglePath(vertexPosition, originPos);
+                    edge.isValid = true;
 
-                    if (float.IsInfinity(cost))
-                        continue;
-
-                    originVertex.pred.Add(new PathEdge(i, j, cost));
-                    vertex.succ.Add(new PathEdge(i,j, cost));
+                    //TODO: only calculate when needed
+                    edge.CalculateCostIfMissing(this);
                 }
             }
             else if (i >= GoalsOffset)
@@ -328,13 +315,16 @@ public struct SmartFindPathJob : IJob
                 for (var j = slice.index; j < slice.index + slice.size; j++)
                 {
                     var destIndex = LinkDestinationsOffset + j;
+                    ref var edge = ref memory.GetEdgeRef(i, destIndex);
+
+                    edge.isValid = true;
 
                     var traverseCost = 0.0001f;
 
-                    ref var destinationVertex = ref pathVertices.GetRef(destIndex);
+                    if (traverseCost <= MinEdgeCost)
+                        traverseCost = MinEdgeCost;
 
-                    destinationVertex.pred.Add(new PathEdge(i, destIndex, traverseCost));
-                    vertex.succ.Add(new PathEdge(i, destIndex, traverseCost));
+                    edge.cost = traverseCost;
                 }
             }
             else
@@ -346,22 +336,23 @@ public struct SmartFindPathJob : IJob
         }
     }
 
-    private readonly int CalculatePath(NativeArray<PathVertex> pathVertices, NativeHeap<HeapElement, HeapElementComparer> heap, int goalIndex, out float totalPathLength)
+    private readonly int CalculatePath(PathfinderMemory memory, int goalIndex, out float totalPathLength)
     {
+        var heap = memory.heap;
         for (var i = 0; i < vertexCount; i++)
         {
-            ref var vertex = ref pathVertices.GetRef(i);
+            ref var vertex = ref memory.GetVertexRef(i);
             vertex.g = float.PositiveInfinity;
             vertex.rhs = float.PositiveInfinity;
         }
 
-        ref var startVertex = ref pathVertices.GetRef(StartIndex);
-        ref var goalVertex = ref pathVertices.GetRef(goalIndex);
+        ref var startVertex = ref memory.GetVertexRef(StartIndex);
+        ref var goalVertex = ref memory.GetVertexRef(goalIndex);
 
         goalVertex.rhs = 0;
 
         heap.Clear();
-        goalVertex.heapIndex = heap.Insert(new(goalIndex, goalVertex.CalculateKey()));
+        goalVertex.heapIndex = heap.Insert(new HeapElement(goalIndex, goalVertex.CalculateKey()));
 
         var iterations = 0;
         var extraIterations = 0;
@@ -370,18 +361,18 @@ public struct SmartFindPathJob : IJob
         {
             if (vertex.heapIndex.IsValid)
             {
-                var removed = heap.Remove(vertex.heapIndex);
+                heap.Remove(vertex.heapIndex);
                 vertex.heapIndex = NativeHeapIndex.Invalid;
             }
             if (!Mathf.Approximately(vertex.g, vertex.rhs))
-                vertex.heapIndex = heap.Insert(new(vertex.index, vertex.CalculateKey()));
+                vertex.heapIndex = heap.Insert(new HeapElement(vertex.index, vertex.CalculateKey()));
         }
 
         while (heap.Count > 0)
         {
             iterations += 1;
             var (index, oldKey) = heap.Peek();
-            ref var currentVertex = ref pathVertices.GetRef(index);
+            ref var currentVertex = ref memory.GetVertexRef(index);
 
             // If we've found a successful path, check more subsequent successful paths, within a limit.
             if (oldKey >= startVertex.CalculateKey() && startVertex.rhs <= startVertex.g && extraIterations++ > MaxPathsToTest)
@@ -403,9 +394,9 @@ public struct SmartFindPathJob : IJob
                 heap.Pop();
                 currentVertex.heapIndex = NativeHeapIndex.Invalid;
 
-                foreach (var (predIndex, _, cost) in currentVertex.pred)
+                foreach (var (predIndex, _, cost) in memory.GetPredecessors(index))
                 {
-                    ref var predVertex = ref pathVertices.GetRef(predIndex);
+                    ref var predVertex = ref memory.GetVertexRef(predIndex);
 
                     if (predIndex != goalIndex)
                     {
@@ -425,18 +416,23 @@ public struct SmartFindPathJob : IJob
                 var gOld = currentVertex.g;
                 currentVertex.g = float.PositiveInfinity;
 
+                foreach (var (predIndex, _, predCost) in memory.GetSuccessors(index))
+                    RecalculateRHS(predIndex, predCost);
+
+                RecalculateRHS(index, 0);
+
                 void RecalculateRHS(int predIndex, float predCost)
                 {
-                    ref var predVertex = ref pathVertices.GetRef(predIndex);
+                    ref var predVertex = ref memory.GetVertexRef(predIndex);
                     if (predIndex != goalIndex)
                     {
                         if (Mathf.Approximately(predVertex.rhs, predCost + gOld))
                         {
                             var minRhs = float.PositiveInfinity;
 
-                            foreach (var (_, succIndex, succCost) in predVertex.succ)
+                            foreach (var (_, succIndex, succCost) in memory.GetSuccessors(predIndex))
                             {
-                                ref var succVertex = ref pathVertices.GetRef(succIndex);
+                                ref var succVertex = ref memory.GetVertexRef(succIndex);
 
                                 var newRhs = succCost + succVertex.g;
 
@@ -450,11 +446,6 @@ public struct SmartFindPathJob : IJob
 
                     UpdateOrAddVertex(ref predVertex);
                 }
-
-                foreach (var (predIndex, _, predCost) in currentVertex.pred)
-                    RecalculateRHS(predIndex, predCost);
-
-                RecalculateRHS(index, 0);
             }
         }
 
@@ -470,9 +461,9 @@ public struct SmartFindPathJob : IJob
 
         var bestIndex = -1;
 
-        foreach (var (_, succIndex, cost) in startVertex.succ)
+        foreach (var (_, succIndex, cost) in memory.GetSuccessors(StartIndex))
         {
-            ref var succVertex = ref pathVertices.GetRef(succIndex);
+            ref var succVertex = ref memory.GetVertexRef(succIndex);
             var newCost = cost + succVertex.g;
 
             if (newCost >= totalPathLength)
@@ -493,38 +484,194 @@ public struct SmartFindPathJob : IJob
         return -1;
     }
 
-    private void DisposeVertices(ref NativeArray<PathVertex> vertices)
+    private struct PathfinderMemory: IDisposable
     {
-        if (vertices == default)
-            return;
+        private bool initialized;
 
-        foreach (var vertex in vertices)
-            vertex.Dispose();
+        private readonly int vertexCount;
 
-        vertices.Dispose();
+        internal NativeArray<PathVertex> vertices;
+        internal NativeArray<PathEdge> edges;
 
-        vertices = default;
+        internal NativeHeap<HeapElement, HeapElementComparer> heap;
+
+        public PathfinderMemory()
+        {
+            throw new NotImplementedException();
+        }
+
+        public PathfinderMemory(int vertexCount)
+        {
+            this.vertexCount = vertexCount;
+            vertices = new NativeArray<PathVertex>(vertexCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+            edges = new NativeArray<PathEdge>(vertexCount * vertexCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+
+            for (var i = 0; i < vertexCount * vertexCount; i++)
+            {
+                var row = i / vertexCount;
+                var column = i % vertexCount;
+                edges[i] = new PathEdge(row, column);
+
+                if (i >= vertexCount)
+                    continue;
+
+                vertices[i] = new PathVertex(i);
+            }
+
+            var heapComparer = new HeapElementComparer();
+            heap = new NativeHeap<HeapElement, HeapElementComparer>(Allocator.Temp, vertexCount, heapComparer);
+            initialized = true;
+        }
+
+        internal readonly IEnumerable<int> GetPredecessorIndexes(int vertexIndex)
+        {
+            if (vertexIndex > vertexCount)
+                yield break;
+            if (vertexIndex < 0)
+                yield break;
+
+            for (var i = 0; i < vertexCount; i++)
+            {
+                var edge = edges[i * vertexCount + vertexIndex];
+                if (!edge.isValid)
+                    continue;
+                yield return i;
+            }
+        }
+        internal readonly IEnumerable<PathEdge> GetPredecessors(int vertexIndex)
+        {
+            if (vertexIndex > vertexCount)
+                yield break;
+            if (vertexIndex < 0)
+                yield break;
+
+            for (var i = 0; i < vertexCount; i++)
+            {
+                var edge = edges[i * vertexCount + vertexIndex];
+                if (!edge.isValid)
+                    continue;
+                yield return edge;
+            }
+        }
+
+        internal readonly IEnumerable<int> GetSuccessorIndexes(int vertexIndex)
+        {
+            if (vertexIndex > vertexCount)
+                yield break;
+            if (vertexIndex < 0)
+                yield break;
+
+            for (var i = 0; i < vertexCount; i++)
+            {
+                var edge = edges[vertexIndex * vertexCount + i];
+                if (!edge.isValid)
+                    continue;
+                yield return i;
+            }
+        }
+
+        internal readonly IEnumerable<PathEdge> GetSuccessors(int vertexIndex)
+        {
+            if (vertexIndex > vertexCount)
+                yield break;
+            if (vertexIndex < 0)
+                yield break;
+
+            for (var i = 0; i < vertexCount; i++)
+            {
+                var edge = edges[vertexIndex * vertexCount + i];
+                if (!edge.isValid)
+                    continue;
+                yield return edge;
+            }
+        }
+
+        internal readonly ref PathEdge GetEdgeRef(int start, int destination)
+        {
+            if (start < 0 || start > vertexCount)
+                throw new IndexOutOfRangeException($"{nameof(start)} index {start} is out of range");
+            if (destination < 0 || destination > vertexCount)
+                throw new IndexOutOfRangeException($"{nameof(destination)} index {destination} is out of range");
+            var index = start * vertexCount + destination;
+
+            return ref edges.GetRef(index);
+        }
+        internal readonly ref PathEdge GetEdgeRef(int edgeIndex)
+        {
+            if (edgeIndex < 0 || edgeIndex > vertexCount * vertexCount)
+                throw new IndexOutOfRangeException($"{nameof(edgeIndex)} index {edgeIndex} is out of range");
+            return ref edges.GetRef(edgeIndex);
+        }
+        internal readonly ref PathVertex GetVertexRef(int vertexIndex)
+        {
+            if (vertexIndex < 0 || vertexIndex > vertexCount)
+                throw new IndexOutOfRangeException($"{nameof(vertexIndex)} index {vertexIndex} is out of range");
+            return ref vertices.GetRef(vertexIndex);
+        }
+
+        public void Dispose()
+        {
+            if (!initialized)
+                return;
+
+            initialized = false;
+
+            vertices.Dispose();
+            edges.Dispose();
+            heap.Dispose();
+        }
     }
 
-    private record struct PathEdge(int sourceIndex, int destIndex, float cost)
+    private record struct PathEdge
     {
-        internal int source = sourceIndex;
-        internal int dest = destIndex;
-        internal float cost = cost;
+        internal bool isValid;
+        internal readonly int source;
+        internal readonly int destination;
+        internal float cost;
+
+        public PathEdge(int source, int destination)
+        {
+            this.source = source;
+            this.destination = destination;
+            this.cost = float.NaN;
+        }
+
+        internal void CalculateCostIfMissing(SmartFindPathJob job)
+        {
+            if (!isValid)
+                return;
+            if(!float.IsNaN(cost))
+                return;
+
+            var origin = job.GetVertexPosition(source);
+            var target = job.GetVertexPosition(destination);
+
+            var traverseCost = job.CalculateSinglePath(origin, target);
+
+            if (traverseCost <= MinEdgeCost)
+                traverseCost = MinEdgeCost;
+
+            cost = traverseCost;
+        }
 
 #if SMART_PATHFINDING_DEBUG
         public readonly override string ToString()
         {
-            return $"{source}->{dest} {nameof(cost)}:{cost:0.###}";
+            if (!isValid)
+                return $"{source}->{destination} Invalid";
+            return $"{source}->{destination} {nameof(cost)}:{cost:0.###}";
         }
 #endif
+        public readonly void Deconstruct(out int source, out int destination, out float cost)
+        {
+            source = this.source;
+            destination = this.destination;
+            cost = !isValid ? float.NaN : this.cost;
+        }
     }
 
     private struct PathVertex : IDisposable
     {
-        internal UnsafeList<PathEdge> pred;
-        internal UnsafeList<PathEdge> succ;
-
         internal int index;
         internal NativeHeapIndex heapIndex;
 
@@ -532,11 +679,8 @@ public struct SmartFindPathJob : IJob
         internal float g;
         internal float rhs;
 
-        internal PathVertex(int index, int maxCount)
+        internal PathVertex(int index)
         {
-            pred = new UnsafeList<PathEdge>(maxCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
-            succ = new UnsafeList<PathEdge>(maxCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
-
             this.index = index;
             heapIndex = NativeHeapIndex.Invalid;
 
@@ -547,11 +691,6 @@ public struct SmartFindPathJob : IJob
 
         public void Dispose()
         {
-            pred.Dispose();
-            pred = default;
-            succ.Dispose();
-            succ = default;
-
             heuristic = float.NaN;
             g = float.NaN;
             rhs = float.NaN;
@@ -627,14 +766,14 @@ public struct SmartFindPathJob : IJob
     }
 
 #if SMART_PATHFINDING_DEBUG
-    private void PrintCurrPath(NativeArray<PathVertex> pathVertices)
+    private void PrintCurrPath(PathfinderMemory memory)
     {
         var currIndex = StartIndex;
         var builder = new StringBuilder("Path:\n");
 
         while (true)
         {
-            ref var currVertex = ref pathVertices.GetRef(currIndex);
+            ref var currVertex = ref memory.GetVertexRef(currIndex);
 
             builder.AppendFormat(" - distance: {0:0.###}", currVertex.g);
             if (currIndex > StartIndex)
@@ -668,9 +807,9 @@ public struct SmartFindPathJob : IJob
             var bestIndex = -1;
             var minCost = float.PositiveInfinity;
 
-            foreach (var (_, succIndex, cost) in currVertex.succ)
+            foreach (var (_, succIndex, cost) in memory.GetSuccessors(currVertex.index))
             {
-                ref var succVertex = ref pathVertices.GetRef(succIndex);
+                ref var succVertex = ref memory.GetVertexRef(succIndex);
                 var newCost = cost + succVertex.g;
 
                 if (newCost >= minCost)
@@ -698,7 +837,7 @@ public struct SmartFindPathJob : IJob
         DebugVertices = new DebugVertex[goalCount][];
     }
 
-    private void CaptureVerticesSnapshot(ref NativeArray<PathVertex> vertices, int goal)
+    private void CaptureVerticesSnapshot(PathfinderMemory memory, int goal)
     {
         DebugVertices[goal] = new DebugVertex[vertexCount];
         for (var i = 0; i < vertexCount; i++)
@@ -714,7 +853,7 @@ public struct SmartFindPathJob : IJob
             else if (i >= 0)
                 vertexType = "LinkOrigin";
 
-            DebugVertices[goal][i] = new DebugVertex(ref vertices, i, vertexType);
+            DebugVertices[goal][i] = new DebugVertex(memory, i, vertexType);
         }
     }
 
@@ -735,26 +874,16 @@ public struct SmartFindPathJob : IJob
         internal readonly PathVertex.VertexKey key;
         internal readonly PathEdge NextEdge;
 
-        internal DebugVertex(ref NativeArray<PathVertex> vertices, int index, string type)
+        internal DebugVertex(PathfinderMemory memory, int index, string type)
         {
-            ref var src = ref vertices.GetRef(index);
+            ref var src = ref memory.GetVertexRef(index);
 
             this.index = src.index;
 
             this.type = type;
 
-            var oldList = src.pred;
-            pred = new PathEdge[oldList.Length];
-            for (var i = 0; i < oldList.Length; i++)
-            {
-                pred[i] = oldList[i];
-            }
-            oldList = src.succ;
-            succ = new PathEdge[oldList.Length];
-            for (var i = 0; i < oldList.Length; i++)
-            {
-                succ[i] = oldList[i];
-            }
+            pred = memory.GetPredecessors(index).ToArray();
+            succ = memory.GetSuccessors(index).ToArray();
 
             heuristic = src.heuristic;
             g = src.g;
@@ -767,7 +896,7 @@ public struct SmartFindPathJob : IJob
 
             foreach (var (_, succIndex, cost) in succ)
             {
-                ref var succVertex = ref vertices.GetRef(succIndex);
+                ref var succVertex = ref memory.GetVertexRef(succIndex);
                 var newCost = cost + succVertex.g;
 
                 if (newCost >= minCost)
@@ -777,7 +906,11 @@ public struct SmartFindPathJob : IJob
                 bestIndex = succIndex;
             }
 
-            NextEdge = new PathEdge(index, bestIndex, minCost);
+            NextEdge = new PathEdge(index, bestIndex)
+            {
+                isValid = true,
+                cost = minCost
+            };
             valid = true;
         }
 
