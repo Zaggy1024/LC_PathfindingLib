@@ -341,18 +341,19 @@ public struct SmartFindPathJob : IJob
 
     private void SetNewGoal(PathfinderMemory memory, int goalIndex)
     {
-        for (var i = LinkDestinationsOffset; i < vertexCount; i++)
-        {
-            var goalPosition = goals[goalIndex];
+        ref var goalVertex = ref memory.GetVertex(GoalVertexIndex);
+        var goalPosition = goals[goalIndex];
 
+        for (var i = 0; i < vertexCount; i++)
+        {
             ref var vertex = ref memory.GetVertex(i);
-            var vertexPosition = (i != GoalVertexIndex) ? GetVertexPosition(i) : goalPosition;
+            var vertexPosition = (i == GoalVertexIndex) ? goalPosition : GetVertexPosition(i);
 
             if (i == GoalVertexIndex)
             {
                 vertex.heuristic = (start - goalPosition).magnitude;
             }
-            else
+            else if (i >= LinkDestinationsOffset)
             {
                 vertex.heuristic = (start - vertexPosition).magnitude;
 
@@ -375,7 +376,14 @@ public struct SmartFindPathJob : IJob
                 //pre-compute costs to goals so we can remove the field
                 goalEdge.cost = CalculateSinglePath(vertexPosition, goalPosition);
             }
+
+            vertex.g = float.PositiveInfinity;
+            vertex.rhs = float.PositiveInfinity;
         }
+
+        goalVertex.rhs = 0;
+        memory.heap.Clear();
+        goalVertex.heapIndex = memory.heap.Insert(new HeapElement(GoalVertexIndex, goalVertex.CalculateKey()));
     }
 
     private static void UpdateOrAddVertex(PathfinderMemory memory, ref PathVertex vertex)
@@ -393,21 +401,9 @@ public struct SmartFindPathJob : IJob
     private readonly int CalculatePath(PathfinderMemory memory, out float totalPathLength)
     {
         var heap = memory.heap;
-        for (var i = 0; i < vertexCount; i++)
-        {
-            ref var vertex = ref memory.GetVertex(i);
-            vertex.g = float.PositiveInfinity;
-            vertex.rhs = float.PositiveInfinity;
-        }
 
         var goalVertexIndex = GoalVertexIndex;
         ref var startVertex = ref memory.GetVertex(StartVertexIndex);
-        ref var goalVertex = ref memory.GetVertex(GoalVertexIndex);
-
-        goalVertex.rhs = 0;
-
-        heap.Clear();
-        goalVertex.heapIndex = heap.Insert(new HeapElement(GoalVertexIndex, goalVertex.CalculateKey()));
 
         var iterations = 0;
         var extraIterations = 0;
