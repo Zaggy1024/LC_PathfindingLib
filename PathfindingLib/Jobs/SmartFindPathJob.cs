@@ -354,11 +354,26 @@ public struct SmartFindPathJob : IJob
             }
             else
             {
-                ref var edge = ref memory.GetEdge(i, GoalVertexIndex);
+                vertex.heuristic = (start - vertexPosition).magnitude;
 
-                edge.isValid = true;
+                for (var j = 0; j < linkCount; j++)
+                {
+                    //check if we can have a better estimation for the cost ( use the lowest value heuristic from the origins )
+                    ref var edge = ref memory.GetEdge(j, i);
+
+                    if(!edge.isValid)
+                        continue;
+
+                    var combinedHeuristic = (start - GetVertexPosition(j)).magnitude + (goalPosition - vertexPosition).magnitude;
+                    if (vertex.heuristic > combinedHeuristic)
+                        vertex.heuristic = combinedHeuristic;
+                }
+
+                ref var goalEdge = ref memory.GetEdge(i, GoalVertexIndex);
+
+                goalEdge.isValid = true;
                 //pre-compute costs to goals so we can remove the field
-                edge.cost = CalculateSinglePath(vertexPosition, goalPosition);
+                goalEdge.cost = CalculateSinglePath(vertexPosition, goalPosition);
             }
         }
     }
