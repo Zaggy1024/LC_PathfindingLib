@@ -4,8 +4,9 @@ using Unity.Jobs;
 using UnityEngine.AI;
 using UnityEngine;
 
-using PathfindingLib.API.Smart;
 using PathfindingLib.Jobs;
+
+using SmartPathLinkOriginType = PathfindingLib.API.SmartPathfinding.SmartPathJobDataContainer.SmartPathLinkOriginType;
 
 namespace PathfindingLib.API.SmartPathfinding;
 
@@ -47,15 +48,53 @@ public class SmartPathTask : IDisposable
             if (!IsComplete)
                 throw new InvalidOperationException("Job is not complete.");
 
-            var index = job.firstNodeIndices[0];
+            var result = job.results[0];
 
-            if (index == -1)
+            if (result.linkIndex == -1)
                 return null;
 
-            if (index >= jobData.linkCount)
-                return SmartPathDestination.DirectDestination(destination);
+            if (result.linkIndex >= jobData.linkCount)
+                return SmartPathDestination.DirectDestination(Destination);
 
-            return jobData.linkOriginDestinations[index];
+            var destination = jobData.linkOriginNodes[result.linkIndex];
+
+            if (destination.type == SmartPathLinkOriginType.EntranceTeleport)
+            {
+                return SmartPathDestination.EntranceTeleportDestination(destination.entrance);
+            }
+            /*else if (destination.type == SmartPathLinkOriginType.Elevator)
+            {
+                var floor = destination.elevatorFloor;
+                var elevator = floor.Elevator;
+                if (floor.IsElevatorAccessible() || elevator.PointIsInside(Origin))
+                {
+                    if (result.linkDestinationIndex == -1 || result.linkDestinationIndex >= jobData.linkCount)
+                    {
+                        PathfindingLibPlugin.Instance.Logger.LogError($"Elevator destination was chosen without a valid second path node {result.linkDestinationIndex}.");
+                        return null;
+                    }
+                    var elevatorDestination = jobData.linkNodes[result.linkDestinationIndex];
+                    if (elevatorDestination.type != SmartPathLinkOriginType.Elevator)
+                    {
+                        PathfindingLibPlugin.Instance.Logger.LogError($"A path through an elevator did not exit at an elevator, the second node was of type {elevatorDestination.type}.");
+                        return null;
+                    }
+                    return SmartPathDestination.RideElevatorDestination(elevatorDestination.elevatorFloor);
+                }
+
+                return SmartPathDestination.CallElevatorDestination(floor);
+            }*/
+            else if (destination.type == SmartPathLinkOriginType.CallElevator)
+            {
+                return SmartPathDestination.CallElevatorDestination(destination.elevatorFloor);
+            }
+            else if (destination.type == SmartPathLinkOriginType.RideElevator)
+            {
+                var targetFloorNode = jobData.linkDestinationNodes[result.linkDestinationIndex];
+                return SmartPathDestination.RideElevatorDestination(targetFloorNode.elevatorFloor);
+            }
+
+            return null;
         }
     }
 

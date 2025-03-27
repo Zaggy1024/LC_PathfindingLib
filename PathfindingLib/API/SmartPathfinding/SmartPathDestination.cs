@@ -1,8 +1,6 @@
 ﻿using UnityEngine;
 
-using PathfindingLib.API.SmartPathfinding;
-
-namespace PathfindingLib.API.Smart;
+namespace PathfindingLib.API.SmartPathfinding;
 
 #nullable enable
 
@@ -43,7 +41,7 @@ public struct SmartPathDestination
         return new SmartPathDestination()
         {
             Type = SmartDestinationType.Elevator,
-            Position = floor.ButtonNavMeshNode.position,
+            Position = floor.CallButtonNavMeshNode.position,
             ElevatorFloor = floor,
         };
     }
@@ -53,12 +51,12 @@ public struct SmartPathDestination
         return new SmartPathDestination()
         {
             Type = SmartDestinationType.Elevator,
-            Position = floor.Elevator.CenterNavMeshNode.position,
+            Position = floor.Elevator.InsideButtonNavMeshNode.position,
             ElevatorFloor = floor,
         };
     }
 
-    public override string ToString()
+    public readonly override string ToString()
     {
         switch (Type)
         {

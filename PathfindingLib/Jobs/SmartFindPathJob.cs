@@ -29,6 +29,13 @@ namespace PathfindingLib.Jobs;
 
 public struct SmartFindPathJob : IJob
 {
+    internal struct PathResult()
+    {
+        internal int linkIndex = -1;
+        internal int linkDestinationIndex = -1;
+        internal float pathLength = float.PositiveInfinity;
+    }
+
     private const int MaxPathsToTest = 30;
     private const float MinEdgeCost = 0.0001f;
 
@@ -50,8 +57,7 @@ public struct SmartFindPathJob : IJob
 
     [ReadOnly, NativeSetThreadIndex] private int threadIndex;
 
-    [WriteOnly] internal NativeArray<int> firstNodeIndices;
-    [WriteOnly] internal NativeArray<float> pathLengths;
+    [WriteOnly] internal NativeArray<PathResult> results;
 
     private void Initialize(SmartPathJobDataContainer data, Vector3 origin, Vector3[] destinations, int destinationCount, NavMeshAgent agent)
     {
@@ -75,8 +81,7 @@ public struct SmartFindPathJob : IJob
         goalCount = destinationCount;
 
         NativeArray<Vector3>.Copy(destinations, goals, destinationCount);
-        firstNodeIndices.SetAllElements(-1);
-        pathLengths.SetAllElements(float.PositiveInfinity);
+        results.SetAllElements(new());
 
         vertexCount = linkCount + destinationCount + linkDestinationCount + 1;
     }
@@ -99,8 +104,7 @@ public struct SmartFindPathJob : IJob
         DisposeResizeableArrays();
 
         goals = new NativeArray<Vector3>(count, Allocator.Persistent);
-        firstNodeIndices = new NativeArray<int>(count, Allocator.Persistent);
-        pathLengths = new NativeArray<float>(count, Allocator.Persistent);
+        results = new NativeArray<PathResult>(count, Allocator.Persistent);
     }
 
     private void DisposeResizeableArrays()
@@ -109,8 +113,7 @@ public struct SmartFindPathJob : IJob
             return;
 
         goals.Dispose();
-        firstNodeIndices.Dispose();
-        pathLengths.Dispose();
+        results.Dispose();
     }
 
 #if BENCHMARKING
@@ -238,7 +241,7 @@ public struct SmartFindPathJob : IJob
 
             goalStopwatch.Restart();
 
-            var result = CalculatePath(memory, goalVertexIndex, out var pathLength);
+            var result = CalculatePath(memory, goalVertexIndex);
 
             goalStopwatch.Stop();
 
@@ -250,16 +253,15 @@ public struct SmartFindPathJob : IJob
 
             PrintCurrPath(memory);
 
-            if (result == -1)
+            if (result.linkIndex == -1)
                 PathfindingLibPlugin.Instance.Logger.LogInfo($"Path for goal {goalIndex} failed.");
-            else if (result == linkCount)
-                PathfindingLibPlugin.Instance.Logger.LogInfo($"Path for goal {goalIndex} was a direct path with length {pathLength}.");
+            else if (result.linkIndex == linkCount)
+                PathfindingLibPlugin.Instance.Logger.LogInfo($"Path for goal {goalIndex} was a direct path with length {result.pathLength}.");
             else
-                PathfindingLibPlugin.Instance.Logger.LogInfo($"Path for goal {goalIndex} was an indirect path through link index {result} ({SmartPathJobDataContainer.linkNames[result]}).");
+                PathfindingLibPlugin.Instance.Logger.LogInfo($"Path for goal {goalIndex} was an indirect path through link index {result.linkIndex} ({SmartPathJobDataContainer.linkNames[result.linkIndex]}).");
 #endif
 
-            firstNodeIndices[goalIndex] = result;
-            pathLengths[goalIndex] = pathLength;
+            results[goalIndex] = result;
         }
 
         memory.Dispose();
@@ -346,7 +348,7 @@ public struct SmartFindPathJob : IJob
         }
     }
 
-    private readonly int CalculatePath(PathfinderMemory memory, int goalIndex, out float totalPathLength)
+    private readonly PathResult CalculatePath(PathfinderMemory memory, int goalIndex)
     {
         var heap = memory.heap;
         for (var i = 0; i < vertexCount; i++)
@@ -466,23 +468,29 @@ public struct SmartFindPathJob : IJob
         PathfindingLibPlugin.Instance.Logger.LogDebug($"Found path after {iterations - extraIterations} iterations, then searched for an extra {extraIterations} iterations");
 #endif
 
-        totalPathLength = float.PositiveInfinity;
-
         // No path was found.
         if (float.IsInfinity(startVertex.rhs))
-            return -1;
+            return new();
 
-        var bestIndex = memory.GetBestSuccessor(StartIndex, out totalPathLength);
+        var result = new PathResult();
+        result.linkIndex = memory.GetBestSuccessor(StartIndex, out result.pathLength);
+        result.linkDestinationIndex = memory.GetBestSuccessor(result.linkIndex, out _);
+
+        if (result.linkDestinationIndex != -1)
+            result.linkDestinationIndex -= LinkDestinationsOffset;
 
         // Return one greater than the possible nodes if we've gotten a direct path to the destination.
-        if (bestIndex == goalIndex)
-            return linkCount;
+        if (result.linkIndex == goalIndex)
+        {
+            result.linkIndex = linkCount;
+            return result;
+        }
 
-        if (bestIndex < linkCount)
-            return bestIndex;
+        if (result.linkIndex < linkCount)
+            return result;
 
-        PathfindingLibPlugin.Instance.Logger.LogFatal($"Smart pathfinding job found a best path that was a link destination. This should not be possible. Index = {bestIndex}, link count = {linkCount}");
-        return -1;
+        PathfindingLibPlugin.Instance.Logger.LogFatal($"Smart pathfinding job found a best path that was a link destination. This should not be possible. First index = {result.linkIndex}, second index = {result.linkDestinationIndex}, link count = {linkCount}");
+        return new();
     }
 
     private struct PathfinderMemory : IDisposable
@@ -818,16 +826,19 @@ public struct SmartFindPathJob : IJob
             }
             else if (currIndex >= LinkDestinationsOffset)
             {
-                builder.AppendFormat(" linkDestination {0}\n", linkDestinations[currIndex - linkCount]);
+                builder.AppendFormat(" linkDestination {0}\n", linkDestinations[currIndex - LinkDestinationsOffset]);
             }
             else if (currIndex >= GoalsOffset)
             {
-                builder.AppendFormat(" Goal {0}\n", start);
+                builder.AppendFormat(" Goal {0}\n", goals[currIndex - GoalsOffset]);
                 break;
             }
             else if (currIndex >= 0)
             {
-                builder.AppendFormat(" {0}\n", SmartPathJobDataContainer.linkNames[currIndex]);
+                var linkName = "Unknown";
+                if (currIndex < SmartPathJobDataContainer.linkNames.Count)
+                    linkName = SmartPathJobDataContainer.linkNames[currIndex];
+                builder.AppendFormat(" {0} {1}\n", linkName, linkOrigins[currIndex]);
             }
             else
             {
@@ -844,7 +855,7 @@ public struct SmartFindPathJob : IJob
             currIndex = bestIndex;
         }
 
-        PathfindingLibPlugin.Instance.Logger.LogDebug(builder.ToString());
+        PathfindingLibPlugin.Instance.Logger.LogInfo(builder.ToString());
     }
 
     private static DebugVertex[][] DebugVertices = [];

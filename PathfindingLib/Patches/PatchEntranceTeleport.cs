@@ -3,7 +3,7 @@
 using HarmonyLib;
 using Unity.Netcode;
 
-using PathfindingLib.Utilities;
+using PathfindingLib.Data;
 
 namespace PathfindingLib.Patches;
 

@@ -1,8 +1,4 @@
-﻿using PathfindingLib.API.Interfaces;
-using System;
-using System.Collections.Generic;
-using System.Text;
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace PathfindingLib.API.SmartPathfinding;
 
@@ -11,7 +7,7 @@ namespace PathfindingLib.API.SmartPathfinding;
 public class ElevatorFloor(IElevator elevator, Transform buttonPosition)
 {
     public IElevator Elevator { get; } = elevator;
-    public Transform ButtonNavMeshNode { get; } = buttonPosition;
+    public Transform CallButtonNavMeshNode { get; } = buttonPosition;
     public bool IsElevatorAccessible()
     {
         return Elevator.IsAccessibleFromFloor(this);
@@ -19,5 +15,9 @@ public class ElevatorFloor(IElevator elevator, Transform buttonPosition)
     public void CallElevator()
     {
         Elevator.GoToFloor(this);
+    }
+    public override string ToString()
+    {
+        return $"{Elevator} Floor @ {CallButtonNavMeshNode}";
     }
 }
