@@ -6,7 +6,6 @@ using System.Reflection.Emit;
 using HarmonyLib;
 using UnityEngine;
 
-using PathfindingLib.API.Smart;
 using PathfindingLib.API.SmartPathfinding;
 using PathfindingLib.Utilities.Internal.IL;
 
