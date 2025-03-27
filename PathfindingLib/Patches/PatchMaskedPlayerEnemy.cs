@@ -43,22 +43,16 @@ internal class PatchMaskedPlayerEnemy
                             masked.SetDestinationToPosition(destination.Position);
                             break;
                         case SmartDestinationType.Elevator:
-                            if (Vector3.Distance(masked.transform.position, destination.Position) < 5f)
-                            {
-                                destination.ElevatorFloor.CallElevator();
-                                break;
-                            }
-
                             masked.SetDestinationToPosition(destination.Position);
+
+                            if (Vector3.Distance(masked.transform.position, destination.Position) < 5f)
+                                destination.ElevatorFloor.CallElevator();
                             break;
                         case SmartDestinationType.EntranceTeleport:
-                            if (Vector3.Distance(masked.transform.position, destination.Position) < 5f)
-                            {
-                                UseTeleport(masked, destination.EntranceTeleport);
-                                break;
-                            }
-
                             masked.SetDestinationToPosition(destination.Position);
+
+                            if (Vector3.Distance(masked.transform.position, destination.Position) < 5f)
+                                UseTeleport(masked, destination.EntranceTeleport);
                             break;
                     }
 

@@ -36,9 +36,11 @@ public struct SmartFindPathJob : IJob
         internal float pathLength = float.PositiveInfinity;
     }
 
-    private const int MaxPathsToTest = 30;
-    private const float MinEdgeCost = 0.0001f;
+    internal const float MinEdgeCost = 0.0001f;
 
+    private const int MaxPathsToTest = 30;
+
+    // Inputs:
     [ReadOnly, NativeDisableContainerSafetyRestriction] private NativeArray<NavMeshQuery> ThreadQueriesRef;
 
     [ReadOnly] private int agentTypeID;
@@ -48,8 +50,13 @@ public struct SmartFindPathJob : IJob
     [ReadOnly] private int goalCount;
 
     [ReadOnly, NativeDisableParallelForRestriction] private NativeArray<Vector3> linkOrigins;
+
     [ReadOnly, NativeDisableParallelForRestriction] private NativeArray<IndexAndSize> linkDestinationSlices;
     [ReadOnly, NativeDisableParallelForRestriction] private NativeArray<Vector3> linkDestinations;
+
+    [ReadOnly, NativeDisableParallelForRestriction] private NativeArray<int> linkDestinationCostOffsets;
+    [ReadOnly, NativeDisableParallelForRestriction] private NativeArray<float> linkDestinationCosts;
+
     [ReadOnly] private int linkCount;
     [ReadOnly] private int linkDestinationCount;
 
@@ -57,6 +64,7 @@ public struct SmartFindPathJob : IJob
 
     [ReadOnly, NativeSetThreadIndex] private int threadIndex;
 
+    // Outputs:
     [WriteOnly] internal NativeArray<PathResult> results;
 
     private void Initialize(SmartPathJobDataContainer data, Vector3 origin, Vector3[] destinations, int destinationCount, NavMeshAgent agent)
@@ -71,8 +79,12 @@ public struct SmartFindPathJob : IJob
         threadIndex = -1;
 
         linkOrigins = data.linkOrigins;
+
         linkDestinationSlices = data.linkDestinationSlices;
         linkDestinations = data.linkDestinations;
+
+        linkDestinationCostOffsets = data.linkDestinationCostOffsets;
+        linkDestinationCosts = data.linkDestinationCosts;
 
         linkCount = data.linkCount;
         linkDestinationCount = data.linkDestinationCount;
@@ -320,16 +332,16 @@ public struct SmartFindPathJob : IJob
 
                 var slice = linkDestinationSlices[i];
 
-                for (var j = slice.index; j < slice.index + slice.size; j++)
+                for (var j = 0; j < slice.size; j++)
                 {
-                    var destIndex = LinkDestinationsOffset + j;
+                    var destIndex = LinkDestinationsOffset + slice.index + j;
                     ref var edge = ref memory.GetEdge(i, destIndex);
 
                     edge.isValid = true;
 
-                    var traverseCost = 0.0001f;
+                    var traverseCost = linkDestinationCosts[linkDestinationCostOffsets[i] + j];
 
-                    if (traverseCost <= MinEdgeCost)
+                    if (traverseCost < MinEdgeCost)
                         traverseCost = MinEdgeCost;
 
                     edge.cost = traverseCost;
@@ -726,7 +738,7 @@ public struct SmartFindPathJob : IJob
 
             var traverseCost = job.CalculateSinglePath(sourcePosition, destinationPosition);
 
-            if (traverseCost <= MinEdgeCost)
+            if (traverseCost < MinEdgeCost)
                 traverseCost = MinEdgeCost;
 
             cost = traverseCost;
