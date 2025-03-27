@@ -62,28 +62,6 @@ public class SmartPathTask : IDisposable
             {
                 return SmartPathDestination.EntranceTeleportDestination(destination.entrance);
             }
-            /*else if (destination.type == SmartPathLinkOriginType.Elevator)
-            {
-                var floor = destination.elevatorFloor;
-                var elevator = floor.Elevator;
-                if (floor.IsElevatorAccessible() || elevator.PointIsInside(Origin))
-                {
-                    if (result.linkDestinationIndex == -1 || result.linkDestinationIndex >= jobData.linkCount)
-                    {
-                        PathfindingLibPlugin.Instance.Logger.LogError($"Elevator destination was chosen without a valid second path node {result.linkDestinationIndex}.");
-                        return null;
-                    }
-                    var elevatorDestination = jobData.linkNodes[result.linkDestinationIndex];
-                    if (elevatorDestination.type != SmartPathLinkOriginType.Elevator)
-                    {
-                        PathfindingLibPlugin.Instance.Logger.LogError($"A path through an elevator did not exit at an elevator, the second node was of type {elevatorDestination.type}.");
-                        return null;
-                    }
-                    return SmartPathDestination.RideElevatorDestination(elevatorDestination.elevatorFloor);
-                }
-
-                return SmartPathDestination.CallElevatorDestination(floor);
-            }*/
             else if (destination.type == SmartPathLinkOriginType.CallElevator)
             {
                 return SmartPathDestination.CallElevatorDestination(destination.elevatorFloor);

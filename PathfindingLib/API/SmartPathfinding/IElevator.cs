@@ -16,6 +16,9 @@ public interface IElevator
         return ClosestFloor == floor && DoorsAreOpen;
     }
 
-    public float TraversalCost(ElevatorFloor a, ElevatorFloor b);
+    public ElevatorFloor? CurrentFloor => DoorsAreOpen ? ClosestFloor : null;
+
+    public float CostToRideElevatorFromCurrentFloor(ElevatorFloor floor);
+    public float CostToTraverseElevator(ElevatorFloor a, ElevatorFloor b);
     public void GoToFloor(ElevatorFloor floor);
 }
