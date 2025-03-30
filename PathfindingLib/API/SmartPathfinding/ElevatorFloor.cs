@@ -8,10 +8,6 @@ public class ElevatorFloor(IElevator elevator, Transform buttonPosition)
 {
     public IElevator Elevator { get; } = elevator;
     public Transform CallButtonNavMeshNode { get; } = buttonPosition;
-    public bool IsElevatorAccessible()
-    {
-        return Elevator.IsAccessibleFromFloor(this);
-    }
     public void CallElevator()
     {
         Elevator.GoToFloor(this);

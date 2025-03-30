@@ -7,18 +7,14 @@ namespace PathfindingLib.API.SmartPathfinding;
 public interface IElevator
 {
     public Transform InsideButtonNavMeshNode { get; }
-    public bool PointIsInside(Vector3 point);
 
     public ElevatorFloor ClosestFloor { get; }
     public bool DoorsAreOpen { get; }
-    public bool IsAccessibleFromFloor(ElevatorFloor floor)
-    {
-        return ClosestFloor == floor && DoorsAreOpen;
-    }
 
     public ElevatorFloor? CurrentFloor => DoorsAreOpen ? ClosestFloor : null;
+    public ElevatorFloor TargetFloor { get; }
 
-    public float CostToRideElevatorFromCurrentFloor(ElevatorFloor floor);
-    public float CostToTraverseElevator(ElevatorFloor a, ElevatorFloor b);
+    public float TimeToCompleteCurrentMovement();
+    public float TimeFromFloorToFloor(ElevatorFloor a, ElevatorFloor b);
     public void GoToFloor(ElevatorFloor floor);
 }

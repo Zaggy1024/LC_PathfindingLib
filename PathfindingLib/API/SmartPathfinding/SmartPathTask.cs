@@ -21,16 +21,16 @@ public class SmartPathTask : IDisposable
     private SmartFindPathJob job;
     private JobHandle jobHandle;
 
-    private SmartPathTask(Vector3 origin, Vector3 destination)
+    private SmartPathTask(Vector3 origin, Vector3 destination, NavMeshAgent agent)
     {
         this.origin = origin;
         this.destination = destination;
-        jobData = SmartPathJobDataContainer.GetJobData();
+        jobData = SmartPathJobDataContainer.GetJobData(agent);
     }
 
     internal static SmartPathTask StartPathTask(Vector3 origin, Vector3 destination, NavMeshAgent agent)
     {
-        var task = new SmartPathTask(origin, destination);
+        var task = new SmartPathTask(origin, destination, agent);
         task.job.Initialize(task.jobData, origin, new Vector3[] { destination }, agent);
         task.jobHandle = task.job.ScheduleByRef();
         return task;
