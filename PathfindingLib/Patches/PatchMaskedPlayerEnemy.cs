@@ -29,6 +29,8 @@ internal class PatchMaskedPlayerEnemy
     {
         try
         {
+            var targetPosition = StartOfRound.Instance.localPlayerController.transform.position;
+
             if (tasks.TryGetValue(masked, out var task))
             {
                 if (!task.IsComplete)
@@ -40,18 +42,18 @@ internal class PatchMaskedPlayerEnemy
                     switch (destination.Type)
                     {
                         case SmartDestinationType.DirectToDestination:
-                            masked.SetDestinationToPosition(destination.Position);
+                            masked.SetDestinationToPosition(targetPosition);
                             break;
                         case SmartDestinationType.Elevator:
                             masked.SetDestinationToPosition(destination.Position);
 
-                            if (Vector3.Distance(masked.transform.position, destination.Position) < 5f)
+                            if (Vector3.Distance(masked.transform.position, destination.Position) < 1f)
                                 destination.ElevatorFloor.CallElevator();
                             break;
                         case SmartDestinationType.EntranceTeleport:
                             masked.SetDestinationToPosition(destination.Position);
 
-                            if (Vector3.Distance(masked.transform.position, destination.Position) < 5f)
+                            if (Vector3.Distance(masked.transform.position, destination.Position) < 1f)
                                 UseTeleport(masked, destination.EntranceTeleport);
                             break;
                     }
@@ -60,8 +62,7 @@ internal class PatchMaskedPlayerEnemy
                 }
             }
 
-            task = SmartPathTask.StartPathTask(masked.transform.position,
-                StartOfRound.Instance.localPlayerController.transform.position, masked.agent);
+            task = SmartPathTask.StartPathTask(masked.transform.position, targetPosition, masked.agent);
             tasks[masked] = task;
         }
         catch (Exception ex)

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 using Unity.Collections;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.Pool;
 
 using PathfindingLib.Jobs;
@@ -71,10 +72,10 @@ internal class SmartPathJobDataContainer : IDisposable
     internal int linkCount;
     internal int linkDestinationCount;
 
-    internal static SmartPathJobDataContainer GetJobData()
+    internal static SmartPathJobDataContainer GetJobData(NavMeshAgent agent)
     {
         var jobData = pool.Get();
-        jobData.FillJobData();
+        jobData.FillJobData(agent);
         return jobData;
     }
 
@@ -85,7 +86,7 @@ internal class SmartPathJobDataContainer : IDisposable
         jobData = null;
     }
 
-    internal void FillJobData()
+    internal void FillJobData(NavMeshAgent agent)
     {
         var elevatorLinkCount = 0;
 
@@ -132,7 +133,9 @@ internal class SmartPathJobDataContainer : IDisposable
             // Add links from each floor to each other floor, using the traversal cost from the elevator interface.
             var floorsSlice = new IndexAndSize(linkDestinationsManaged.Count, floors.Count);
 
-            var closestFloor = elevator.ClosestFloor;
+            var currentFloor = elevator.CurrentFloor;
+            var targetFloor = elevator.TargetFloor;
+
             foreach (var floor in floors)
             {
                 var node = SmartPathLinkNode.CallElevator(floor);
@@ -147,11 +150,21 @@ internal class SmartPathJobDataContainer : IDisposable
 
                 foreach (var destinationFloor in floors)
                 {
+                    var cost = float.PositiveInfinity;
+
                     // Disallow using the elevator button to go back to the closest floor, to avoid getting stuck.
-                    if (floor == destinationFloor || floor == closestFloor)
-                        linkDestinationCostsManaged.Add(float.PositiveInfinity);
-                    else
-                        linkDestinationCostsManaged.Add(elevator.CostToTraverseElevator(floor, destinationFloor));
+                    if (floor != destinationFloor && floor != currentFloor)
+                    {
+                        cost = 0;
+                        if (!elevator.DoorsAreOpen)
+                            cost += elevator.TimeToCompleteCurrentMovement();
+                        if (floor != targetFloor)
+                            cost += elevator.TimeFromFloorToFloor(targetFloor, floor);
+                        cost += elevator.TimeFromFloorToFloor(floor, destinationFloor);
+                        cost *= agent.speed;
+                    }
+
+                    linkDestinationCostsManaged.Add(cost);
                 }
 
                 if (fillNames)
@@ -168,14 +181,17 @@ internal class SmartPathJobDataContainer : IDisposable
 
             linkDestinationCostOffsets[i] = linkDestinationCostsManaged.Count;
 
-            var currentFloor = elevator.CurrentFloor;
             foreach (var floor in floors)
             {
-                // Allow riding the elevator to all floors except the one that the elevator is currently accessible on.
-                if (floor == currentFloor)
-                    linkDestinationCostsManaged.Add(float.PositiveInfinity);
-                else
-                    linkDestinationCostsManaged.Add(elevator.CostToRideElevatorFromCurrentFloor(floor));
+                var cost = float.PositiveInfinity;
+
+                // Link from inside the elevator to all other floors if doors are open.
+                // If the doors are closed, only link to the elevator's destination floor, to avoid
+                // AI choosing to send the elevator to another floor while they are inside it.
+                if (floor != currentFloor && (elevator.DoorsAreOpen || targetFloor == floor))
+                    cost = elevator.TimeFromFloorToFloor(elevator.ClosestFloor, floor) * agent.speed;
+
+                linkDestinationCostsManaged.Add(cost);
             }
 
             if (fillNames)
