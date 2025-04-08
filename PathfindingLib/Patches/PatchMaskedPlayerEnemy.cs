@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 
@@ -16,25 +16,39 @@ internal class PatchMaskedPlayerEnemy
 {
     private static Dictionary<MaskedPlayerEnemy, SmartPathTask> tasks = [];
 
+    enum GoToDestinationResult
+    {
+        Success,
+        InProgress,
+        Failure,
+    }
+
     private static void UseTeleport(MaskedPlayerEnemy masked, EntranceTeleport teleport)
     {
         if (teleport.exitPoint == null && !teleport.FindExitPoint())
             return;
 
-        masked.agent.Warp(teleport.exitPoint.position);
-        masked.SetEnemyOutside(!teleport.isEntranceToBuilding);
+        masked.TeleportMaskedEnemyAndSync(teleport.exitPoint.position, setOutside: !teleport.isEntranceToBuilding);
     }
 
-    private static void GoToDestination(MaskedPlayerEnemy masked, Vector3 targetPosition)
+    private static GoToDestinationResult GoToDestination(MaskedPlayerEnemy masked, Vector3 targetPosition)
     {
+        var result = GoToDestinationResult.InProgress;
+
         if (tasks.TryGetValue(masked, out var task))
         {
             if (!task.IsComplete)
-                return;
-            if (task.Result.HasValue)
+                return result;
+            if (!task.Result.HasValue)
+            {
+                result = GoToDestinationResult.Failure;
+            }
+            else
             {
                 var destination = task.Result.Value;
+                result = GoToDestinationResult.Success;
                 PathfindingLibPlugin.Instance.Logger.LogInfo($"Destination result is: {destination}");
+
                 switch (destination.Type)
                 {
                     case SmartDestinationType.DirectToDestination:
@@ -52,6 +66,9 @@ internal class PatchMaskedPlayerEnemy
                         if (Vector3.Distance(masked.transform.position, destination.Position) < 1f)
                             UseTeleport(masked, destination.EntranceTeleport);
                         break;
+                    default:
+                        result = GoToDestinationResult.Failure;
+                        break;
                 }
 
                 PathfindingLibPlugin.Instance.Logger.LogInfo($"Destination is {masked.destination}");
@@ -60,6 +77,7 @@ internal class PatchMaskedPlayerEnemy
 
         task = SmartPathTask.StartPathTask(masked.transform.position, targetPosition, masked.agent);
         tasks[masked] = task;
+        return result;
     }
 
     private static void DoAIInterval(MaskedPlayerEnemy masked)
@@ -92,91 +110,21 @@ internal class PatchMaskedPlayerEnemy
                 }
                 if (Time.realtimeSinceStartup - masked.timeAtLastUsingEntrance > 3f)
                 {
-                    bool flag = false;
-                    PlayerControllerB closestPlayer2 = masked.GetClosestPlayer();
-                    if (!masked.isOutside && closestPlayer2 != null && RoundManager.Instance.currentDungeonType == 4 && Vector3.Distance(closestPlayer2.transform.position, masked.mainEntrancePosition) < 30f)
+                    if (masked.GetClosestPlayer() == null)
                     {
-                        flag = true;
-                    }
-                    if (closestPlayer2 == null || flag != masked.isInElevatorStartRoom)
-                    {
-                        bool flag2 = false;
-                        bool flag3 = false;
-                        bool flag4 = true;
-                        if (masked.elevatorScript == null)
-                        {
-                            masked.elevatorScript = UnityEngine.Object.FindObjectOfType<MineshaftElevatorController>();
-                            if (masked.elevatorScript == null)
-                            {
-                                flag4 = false;
-                            }
-                        }
-                        if (flag4)
-                        {
-                            if (masked.isInElevatorStartRoom)
-                            {
-                                if (Vector3.Distance(masked.transform.position, masked.elevatorScript.elevatorBottomPoint.position) < 10f)
-                                {
-                                    masked.isInElevatorStartRoom = false;
-                                }
-                            }
-                            else if (Vector3.Distance(masked.transform.position, masked.elevatorScript.elevatorTopPoint.position) < 10f)
-                            {
-                                masked.isInElevatorStartRoom = true;
-                            }
-                        }
-                        if (flag4 && RoundManager.Instance.currentDungeonType == 4 && !masked.isOutside)
-                        {
-                            if (!masked.isInElevatorStartRoom)
-                            {
-                                flag2 = masked.UseElevator(goUp: true);
-                            }
-                            else
-                            {
-                                bool flag5 = false;
-                                for (int i = 0; i < StartOfRound.Instance.allPlayerScripts.Length; i++)
-                                {
-                                    if (!StartOfRound.Instance.allPlayerScripts[i].isPlayerDead && StartOfRound.Instance.allPlayerScripts[i].isPlayerControlled && StartOfRound.Instance.allPlayerScripts[i].isInsideFactory)
-                                    {
-                                        flag5 = true;
-                                        break;
-                                    }
-                                }
-                                if (!flag5)
-                                {
-                                    flag3 = true;
-                                    flag2 = masked.GoTowardsEntrance();
-                                }
-                                else if (!flag)
-                                {
-                                    flag2 = masked.UseElevator(goUp: false);
-                                }
-                            }
-                        }
-                        else
-                        {
-                            flag3 = true;
-                            flag2 = masked.GoTowardsEntrance();
-                        }
-                        if (flag3 && Vector3.Distance(masked.transform.position, masked.mainEntrancePosition) < 1f)
-                        {
-                            masked.TeleportMaskedEnemyAndSync(RoundManager.FindMainEntrancePosition(getTeleportPosition: true, !masked.isOutside), !masked.isOutside);
+                        var result = GoToDestination(masked, RoundManager.FindMainEntrancePosition(getTeleportPosition: true, getOutsideEntrance: !masked.isOutside));
+
+                        if (result == GoToDestinationResult.InProgress)
                             return;
-                        }
-                        if (flag2)
+                        if (result == GoToDestinationResult.Success)
                         {
-                            if (masked.searchForPlayers.inProgress)
-                            {
-                                masked.StopSearch(masked.searchForPlayers);
-                            }
+                            masked.StopSearch(masked.searchForPlayers);
                             return;
                         }
                     }
                 }
                 if (!masked.searchForPlayers.inProgress)
-                {
                     masked.StartSearch(masked.transform.position, masked.searchForPlayers);
-                }
                 break;
             // Chasing
             case 1:
