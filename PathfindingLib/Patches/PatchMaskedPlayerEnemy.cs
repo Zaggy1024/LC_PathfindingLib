@@ -1,8 +1,8 @@
-﻿using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 
+using GameNetcodeStuff;
 using HarmonyLib;
 using UnityEngine;
 
@@ -25,49 +25,315 @@ internal class PatchMaskedPlayerEnemy
         masked.SetEnemyOutside(!teleport.isEntranceToBuilding);
     }
 
+    private static void GoToDestination(MaskedPlayerEnemy masked, Vector3 targetPosition)
+    {
+        if (tasks.TryGetValue(masked, out var task))
+        {
+            if (!task.IsComplete)
+                return;
+            if (task.Result.HasValue)
+            {
+                var destination = task.Result.Value;
+                PathfindingLibPlugin.Instance.Logger.LogInfo($"Destination result is: {destination}");
+                switch (destination.Type)
+                {
+                    case SmartDestinationType.DirectToDestination:
+                        masked.SetDestinationToPosition(targetPosition);
+                        break;
+                    case SmartDestinationType.Elevator:
+                        masked.SetDestinationToPosition(destination.Position);
+
+                        if (Vector3.Distance(masked.transform.position, destination.Position) < 1f)
+                            destination.ElevatorFloor.CallElevator();
+                        break;
+                    case SmartDestinationType.EntranceTeleport:
+                        masked.SetDestinationToPosition(destination.Position);
+
+                        if (Vector3.Distance(masked.transform.position, destination.Position) < 1f)
+                            UseTeleport(masked, destination.EntranceTeleport);
+                        break;
+                }
+
+                PathfindingLibPlugin.Instance.Logger.LogInfo($"Destination is {masked.destination}");
+            }
+        }
+
+        task = SmartPathTask.StartPathTask(masked.transform.position, targetPosition, masked.agent);
+        tasks[masked] = task;
+    }
+
     private static void DoAIInterval(MaskedPlayerEnemy masked)
     {
-        try
+        if (masked.isEnemyDead)
         {
-            var targetPosition = StartOfRound.Instance.localPlayerController.transform.position;
-
-            if (tasks.TryGetValue(masked, out var task))
-            {
-                if (!task.IsComplete)
-                    return;
-                if (task.Result.HasValue)
-                {
-                    var destination = task.Result.Value;
-                    PathfindingLibPlugin.Instance.Logger.LogInfo($"Destination result is: {destination}");
-                    switch (destination.Type)
-                    {
-                        case SmartDestinationType.DirectToDestination:
-                            masked.SetDestinationToPosition(targetPosition);
-                            break;
-                        case SmartDestinationType.Elevator:
-                            masked.SetDestinationToPosition(destination.Position);
-
-                            if (Vector3.Distance(masked.transform.position, destination.Position) < 1f)
-                                destination.ElevatorFloor.CallElevator();
-                            break;
-                        case SmartDestinationType.EntranceTeleport:
-                            masked.SetDestinationToPosition(destination.Position);
-
-                            if (Vector3.Distance(masked.transform.position, destination.Position) < 1f)
-                                UseTeleport(masked, destination.EntranceTeleport);
-                            break;
-                    }
-
-                    PathfindingLibPlugin.Instance.Logger.LogInfo($"Destination is {masked.destination}");
-                }
-            }
-
-            task = SmartPathTask.StartPathTask(masked.transform.position, targetPosition, masked.agent);
-            tasks[masked] = task;
+            masked.agent.speed = 0f;
+            return;
         }
-        catch (Exception ex)
+
+        PlayerControllerB playerControllerB;
+        switch (masked.currentBehaviourStateIndex)
         {
-            PathfindingLibPlugin.Instance.Logger.LogFatal(ex);
+            // Roaming
+            case 0:
+                masked.LookAndRunRandomly(canStartRunning: true);
+                playerControllerB = masked.CheckLineOfSightForClosestPlayer();
+                if (playerControllerB != null)
+                {
+                    masked.LookAtPlayerServerRpc((int)playerControllerB.playerClientId);
+                    masked.SetMovingTowardsTargetPlayer(playerControllerB);
+                    masked.SwitchToBehaviourState(1);
+                    break;
+                }
+                masked.interestInShipCooldown += masked.AIIntervalTime;
+                if (masked.interestInShipCooldown >= 17f && Vector3.Distance(masked.transform.position, StartOfRound.Instance.elevatorTransform.position) < 22f)
+                {
+                    masked.SwitchToBehaviourState(2);
+                    break;
+                }
+                if (Time.realtimeSinceStartup - masked.timeAtLastUsingEntrance > 3f)
+                {
+                    bool flag = false;
+                    PlayerControllerB closestPlayer2 = masked.GetClosestPlayer();
+                    if (!masked.isOutside && closestPlayer2 != null && RoundManager.Instance.currentDungeonType == 4 && Vector3.Distance(closestPlayer2.transform.position, masked.mainEntrancePosition) < 30f)
+                    {
+                        flag = true;
+                    }
+                    if (closestPlayer2 == null || flag != masked.isInElevatorStartRoom)
+                    {
+                        bool flag2 = false;
+                        bool flag3 = false;
+                        bool flag4 = true;
+                        if (masked.elevatorScript == null)
+                        {
+                            masked.elevatorScript = UnityEngine.Object.FindObjectOfType<MineshaftElevatorController>();
+                            if (masked.elevatorScript == null)
+                            {
+                                flag4 = false;
+                            }
+                        }
+                        if (flag4)
+                        {
+                            if (masked.isInElevatorStartRoom)
+                            {
+                                if (Vector3.Distance(masked.transform.position, masked.elevatorScript.elevatorBottomPoint.position) < 10f)
+                                {
+                                    masked.isInElevatorStartRoom = false;
+                                }
+                            }
+                            else if (Vector3.Distance(masked.transform.position, masked.elevatorScript.elevatorTopPoint.position) < 10f)
+                            {
+                                masked.isInElevatorStartRoom = true;
+                            }
+                        }
+                        if (flag4 && RoundManager.Instance.currentDungeonType == 4 && !masked.isOutside)
+                        {
+                            if (!masked.isInElevatorStartRoom)
+                            {
+                                flag2 = masked.UseElevator(goUp: true);
+                            }
+                            else
+                            {
+                                bool flag5 = false;
+                                for (int i = 0; i < StartOfRound.Instance.allPlayerScripts.Length; i++)
+                                {
+                                    if (!StartOfRound.Instance.allPlayerScripts[i].isPlayerDead && StartOfRound.Instance.allPlayerScripts[i].isPlayerControlled && StartOfRound.Instance.allPlayerScripts[i].isInsideFactory)
+                                    {
+                                        flag5 = true;
+                                        break;
+                                    }
+                                }
+                                if (!flag5)
+                                {
+                                    flag3 = true;
+                                    flag2 = masked.GoTowardsEntrance();
+                                }
+                                else if (!flag)
+                                {
+                                    flag2 = masked.UseElevator(goUp: false);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            flag3 = true;
+                            flag2 = masked.GoTowardsEntrance();
+                        }
+                        if (flag3 && Vector3.Distance(masked.transform.position, masked.mainEntrancePosition) < 1f)
+                        {
+                            masked.TeleportMaskedEnemyAndSync(RoundManager.FindMainEntrancePosition(getTeleportPosition: true, !masked.isOutside), !masked.isOutside);
+                            return;
+                        }
+                        if (flag2)
+                        {
+                            if (masked.searchForPlayers.inProgress)
+                            {
+                                masked.StopSearch(masked.searchForPlayers);
+                            }
+                            return;
+                        }
+                    }
+                }
+                if (!masked.searchForPlayers.inProgress)
+                {
+                    masked.StartSearch(masked.transform.position, masked.searchForPlayers);
+                }
+                break;
+            // Chasing
+            case 1:
+                masked.LookAndRunRandomly(canStartRunning: true, onlySetRunning: true);
+                playerControllerB = masked.CheckLineOfSightForClosestPlayer(70f, 50, 1, 3f);
+                if (playerControllerB != null)
+                {
+                    masked.lostPlayerInChase = false;
+                    masked.lostLOSTimer = 0f;
+                    if (playerControllerB != masked.targetPlayer)
+                    {
+                        masked.SetMovingTowardsTargetPlayer(playerControllerB);
+                        masked.LookAtPlayerServerRpc((int)playerControllerB.playerClientId);
+                    }
+                    if (masked.mostOptimalDistance > 17f)
+                    {
+                        if (masked.handsOut)
+                        {
+                            masked.handsOut = false;
+                            masked.SetHandsOutServerRpc(setOut: false);
+                        }
+                        if (!masked.running)
+                        {
+                            masked.running = true;
+                            masked.creatureAnimator.SetBool("Running", value: true);
+                            masked.SetRunningServerRpc(running: true);
+                        }
+                    }
+                    else if (masked.mostOptimalDistance < 6f)
+                    {
+                        if (!masked.handsOut)
+                        {
+                            masked.handsOut = true;
+                            masked.SetHandsOutServerRpc(setOut: true);
+                        }
+                    }
+                    else if (masked.mostOptimalDistance < 12f)
+                    {
+                        if (masked.handsOut)
+                        {
+                            masked.handsOut = false;
+                            masked.SetHandsOutServerRpc(setOut: false);
+                        }
+                        if (masked.running && !masked.runningRandomly)
+                        {
+                            masked.running = false;
+                            masked.creatureAnimator.SetBool("Running", value: false);
+                            masked.SetRunningServerRpc(running: false);
+                        }
+                    }
+                    break;
+                }
+                masked.lostLOSTimer += masked.AIIntervalTime;
+                if (masked.lostLOSTimer > 10f)
+                {
+                    masked.SwitchToBehaviourState(0);
+                    masked.targetPlayer = null;
+                }
+                else if (masked.lostLOSTimer > 3.5f)
+                {
+                    masked.lostPlayerInChase = true;
+                    masked.StopLookingAtTransformServerRpc();
+                    masked.targetPlayer = null;
+                    if (masked.running)
+                    {
+                        masked.running = false;
+                        masked.creatureAnimator.SetBool("Running", value: false);
+                        masked.SetRunningServerRpc(running: false);
+                    }
+                    if (masked.handsOut)
+                    {
+                        masked.handsOut = false;
+                        masked.SetHandsOutServerRpc(setOut: false);
+                    }
+                }
+                break;
+            case 2:
+                {
+                    if (!masked.isInsidePlayerShip)
+                    {
+                        masked.interestInShipCooldown -= masked.AIIntervalTime;
+                    }
+                    if (Vector3.Distance(masked.transform.position, StartOfRound.Instance.insideShipPositions[0].position) > 27f || masked.interestInShipCooldown <= 0f)
+                    {
+                        masked.SwitchToBehaviourState(0);
+                        break;
+                    }
+                    PlayerControllerB closestPlayer = masked.GetClosestPlayer();
+                    if (closestPlayer != null)
+                    {
+                        PlayerControllerB playerControllerB2 = masked.CheckLineOfSightForClosestPlayer(70f, 20, 0);
+                        if (playerControllerB2 != null)
+                        {
+                            if (masked.stareAtTransform != playerControllerB2.gameplayCamera.transform)
+                            {
+                                masked.LookAtPlayerServerRpc((int)playerControllerB2.playerClientId);
+                            }
+                            masked.SetMovingTowardsTargetPlayer(playerControllerB2);
+                            masked.SwitchToBehaviourState(1);
+                        }
+                        else if (masked.isInsidePlayerShip && closestPlayer.HasLineOfSightToPosition(masked.transform.position + Vector3.up * 0.7f, 4f, 20))
+                        {
+                            if (masked.stareAtTransform != closestPlayer.gameplayCamera.transform)
+                            {
+                                masked.LookAtPlayerServerRpc((int)closestPlayer.playerClientId);
+                            }
+                            masked.SetMovingTowardsTargetPlayer(closestPlayer);
+                            masked.SwitchToBehaviourState(1);
+                        }
+                        else if (masked.mostOptimalDistance < 6f)
+                        {
+                            if (masked.stareAtTransform != closestPlayer.gameplayCamera.transform)
+                            {
+                                masked.stareAtTransform = closestPlayer.gameplayCamera.transform;
+                                masked.LookAtPlayerServerRpc((int)closestPlayer.playerClientId);
+                            }
+                        }
+                        else if (masked.mostOptimalDistance > 12f && masked.stareAtTransform != null)
+                        {
+                            masked.stareAtTransform = null;
+                            masked.StopLookingAtTransformServerRpc();
+                        }
+                    }
+                    masked.SetDestinationToPosition(masked.shipHidingSpot);
+                    if (!masked.crouching && Vector3.Distance(masked.transform.position, masked.shipHidingSpot) < 0.4f)
+                    {
+                        masked.agent.speed = 0f;
+                        masked.crouching = true;
+                        masked.SetCrouchingServerRpc(setOut: true);
+                    }
+                    else if (masked.crouching && Vector3.Distance(masked.transform.position, masked.shipHidingSpot) > 1f)
+                    {
+                        masked.crouching = false;
+                        masked.SetCrouchingServerRpc(setOut: false);
+                    }
+                    break;
+                }
+        }
+        if (!(masked.targetPlayer != null) || !masked.PlayerIsTargetable(masked.targetPlayer) || (masked.currentBehaviourStateIndex != 1 && masked.currentBehaviourStateIndex != 2))
+        {
+            return;
+        }
+        if (masked.lostPlayerInChase)
+        {
+            masked.movingTowardsTargetPlayer = false;
+            if (!masked.searchForPlayers.inProgress)
+            {
+                masked.StartSearch(masked.transform.position, masked.searchForPlayers);
+            }
+        }
+        else
+        {
+            if (masked.searchForPlayers.inProgress)
+            {
+                masked.StopSearch(masked.searchForPlayers);
+            }
+            masked.SetMovingTowardsTargetPlayer(masked.targetPlayer);
         }
     }
 
