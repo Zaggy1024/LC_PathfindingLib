@@ -124,7 +124,7 @@ internal class PatchMaskedPlayerEnemy
                     }
                 }
                 if (!masked.searchForPlayers.inProgress)
-                    masked.StartSearch(masked.transform.position, masked.searchForPlayers);
+                    masked.StartSmartSearch(masked.transform.position, masked.searchForPlayers);
                 break;
             // Chasing
             case 1:
@@ -272,7 +272,7 @@ internal class PatchMaskedPlayerEnemy
             masked.movingTowardsTargetPlayer = false;
             if (!masked.searchForPlayers.inProgress)
             {
-                masked.StartSearch(masked.transform.position, masked.searchForPlayers);
+                masked.StartSmartSearch(masked.transform.position, masked.searchForPlayers);
             }
         }
         else
