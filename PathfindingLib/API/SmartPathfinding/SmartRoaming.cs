@@ -64,7 +64,7 @@ public static class SmartRoaming
             else
             {
                 enemy.currentSearch.waitingForTargetNode = true;
-                enemy.StartCalculatingNextTargetNode();
+                enemy.StartCalculatingNextSmartTargetNode();
 
                 yield return new WaitUntil(() => enemy.currentSearch.choseTargetNode);
             }
@@ -94,7 +94,7 @@ public static class SmartRoaming
             }
 
             // Calculate the next node ahead of time.
-            enemy.StartCalculatingNextTargetNode();
+            enemy.StartCalculatingNextSmartTargetNode();
 
             // Wait for the current target to be reached.
             currentTargetPos = enemy.currentSearch.currentTargetNode.transform.position;
@@ -117,5 +117,93 @@ public static class SmartRoaming
 
         if (!enemy.IsOwner)
             enemy.StopSearch(enemy.currentSearch);
+    }
+
+    public static void StartCalculatingNextSmartTargetNode(this EnemyAI enemy)
+    {
+        var search = enemy.currentSearch;
+
+        if (enemy.chooseTargetNodeCoroutine == null)
+        {
+            search.choseTargetNode = false;
+            enemy.chooseTargetNodeCoroutine = enemy.StartCoroutine(enemy.ChooseNextNodeInSmartSearchRoutine());
+            return;
+        }
+
+        if (!search.calculatingNodeInSearch)
+        {
+            search.choseTargetNode = false;
+            search.calculatingNodeInSearch = true;
+            enemy.StopCoroutine(enemy.chooseTargetNodeCoroutine);
+            enemy.chooseTargetNodeCoroutine = enemy.StartCoroutine(enemy.ChooseNextNodeInSmartSearchRoutine());
+        }
+    }
+
+    public static IEnumerator ChooseNextNodeInSmartSearchRoutine(this EnemyAI enemy)
+    {
+        yield return null;
+
+        GameObject chosenNode = null;
+        var chosenNodeDistance = 500f;
+
+        var searchWidthSqr = enemy.currentSearch.searchWidth * enemy.currentSearch.searchWidth;
+
+        for (var i = enemy.currentSearch.unsearchedNodes.Count - 1; i >= 0; i--)
+        {
+            if (!enemy.IsOwner)
+            {
+                enemy.currentSearch.calculatingNodeInSearch = false;
+                yield break;
+            }
+
+            if (i % 5 == 0)
+            {
+                yield return null;
+                searchWidthSqr = enemy.currentSearch.searchWidth * enemy.currentSearch.searchWidth;
+            }
+
+            var nodePosition = enemy.currentSearch.unsearchedNodes[i].transform.position;
+
+            if ((nodePosition - enemy.currentSearch.currentSearchStartPosition).sqrMagnitude > searchWidthSqr)
+            {
+                enemy.EliminateNodeFromSearch(i);
+                continue;
+            }
+
+            if (enemy.agent.isOnNavMesh && enemy.PathIsIntersectedByLineOfSight(nodePosition, enemy.currentSearch.startedSearchAtSelf, avoidLineOfSight: false))
+            {
+                enemy.EliminateNodeFromSearch(i);
+                continue;
+            }
+
+            if (enemy.currentSearch.onlySearchNodesInLOS && Physics.Linecast(nodePosition, enemy.currentSearch.currentSearchStartPosition, StartOfRound.Instance.collidersAndRoomMaskAndDefault, QueryTriggerInteraction.Ignore))
+            {
+                enemy.EliminateNodeFromSearch(i);
+                continue;
+            }
+
+            if (!enemy.currentSearch.startedSearchAtSelf)
+            {
+                enemy.GetPathDistance(nodePosition, enemy.currentSearch.currentSearchStartPosition);
+            }
+
+            if (enemy.pathDistance < chosenNodeDistance && (!enemy.currentSearch.randomized || chosenNode == null || enemy.searchRoutineRandom.Next(0, 100) < 65))
+            {
+                chosenNodeDistance = enemy.pathDistance;
+                chosenNode = enemy.currentSearch.unsearchedNodes[i];
+
+                if (chosenNodeDistance <= 0 && !enemy.currentSearch.randomized)
+                    break;
+            }
+        }
+
+        if (enemy.currentSearch.waitingForTargetNode)
+            enemy.currentSearch.currentTargetNode = chosenNode;
+        else
+            enemy.currentSearch.nextTargetNode = chosenNode;
+
+        enemy.currentSearch.choseTargetNode = true;
+        enemy.currentSearch.calculatingNodeInSearch = false;
+        enemy.chooseTargetNodeCoroutine = null;
     }
 }
