@@ -1,4 +1,5 @@
-﻿using System.Collections;
+using System.Collections;
+using System.Collections.Generic;
 
 using UnityEngine;
 
@@ -7,6 +8,8 @@ namespace PathfindingLib.API.SmartPathfinding;
 public static class SmartRoaming
 {
     public static bool useVanilla = false;
+
+    private static readonly List<Vector3> unsearchedNodePositions = [];
 
     public static void StartSmartSearch(this EnemyAI enemy, Vector3 startOfSearch, AISearchRoutine newSearch = null)
     {
@@ -146,6 +149,19 @@ public static class SmartRoaming
         GameObject chosenNode = null;
         var chosenNodeDistance = 500f;
 
+        // Collect all node positions into a list to pass to the smart pathfinding task.
+        unsearchedNodePositions.Clear();
+        foreach (var node in enemy.currentSearch.unsearchedNodes)
+            unsearchedNodePositions.Add(node.transform.position);
+
+        // Start a task to calculate paths from the enemy to each node.
+        var pathsFromEnemyTask = new SmartPathTask();
+        pathsFromEnemyTask.StartPathTask(enemy.agent, enemy.transform.position, unsearchedNodePositions);
+
+        // Start a task to calculate paths from the search origin to each node if necessary.
+        var pathsFromSearchStart = !enemy.currentSearch.startedSearchAtSelf ? new SmartPathTask() : null;
+        pathsFromSearchStart?.StartPathTask(enemy.agent, enemy.currentSearch.currentSearchStartPosition, unsearchedNodePositions);
+
         var searchWidthSqr = enemy.currentSearch.searchWidth * enemy.currentSearch.searchWidth;
 
         for (var i = enemy.currentSearch.unsearchedNodes.Count - 1; i >= 0; i--)
@@ -162,6 +178,14 @@ public static class SmartRoaming
                 searchWidthSqr = enemy.currentSearch.searchWidth * enemy.currentSearch.searchWidth;
             }
 
+            while (!pathsFromEnemyTask.IsResultReady(i))
+                yield return null;
+            if (pathsFromSearchStart != null)
+            {
+                while (!pathsFromSearchStart.IsResultReady(i))
+                    yield return null;
+            }
+
             var nodePosition = enemy.currentSearch.unsearchedNodes[i].transform.position;
 
             if ((nodePosition - enemy.currentSearch.currentSearchStartPosition).sqrMagnitude > searchWidthSqr)
@@ -170,7 +194,7 @@ public static class SmartRoaming
                 continue;
             }
 
-            if (enemy.agent.isOnNavMesh && enemy.PathIsIntersectedByLineOfSight(nodePosition, enemy.currentSearch.startedSearchAtSelf, avoidLineOfSight: false))
+            if (enemy.agent.isOnNavMesh && !pathsFromEnemyTask.PathSucceeded(i))
             {
                 enemy.EliminateNodeFromSearch(i);
                 continue;
@@ -182,14 +206,11 @@ public static class SmartRoaming
                 continue;
             }
 
-            if (!enemy.currentSearch.startedSearchAtSelf)
-            {
-                enemy.GetPathDistance(nodePosition, enemy.currentSearch.currentSearchStartPosition);
-            }
+            var pathDistance = pathsFromSearchStart != null ? pathsFromSearchStart.GetPathLength(i) : pathsFromEnemyTask.GetPathLength(i);
 
-            if (enemy.pathDistance < chosenNodeDistance && (!enemy.currentSearch.randomized || chosenNode == null || enemy.searchRoutineRandom.Next(0, 100) < 65))
+            if (pathDistance < chosenNodeDistance && (!enemy.currentSearch.randomized || chosenNode == null || enemy.searchRoutineRandom.Next(0, 100) < 65))
             {
-                chosenNodeDistance = enemy.pathDistance;
+                chosenNodeDistance = pathDistance;
                 chosenNode = enemy.currentSearch.unsearchedNodes[i];
 
                 if (chosenNodeDistance <= 0 && !enemy.currentSearch.randomized)
