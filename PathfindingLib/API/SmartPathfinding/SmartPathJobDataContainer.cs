@@ -53,9 +53,17 @@ internal class SmartPathJobDataContainer : IDisposable
         }
     }
 
-    private static readonly ObjectPool<SmartPathJobDataContainer> pool = new(() => new(), actionOnDestroy: v => v.Dispose());
+    private static readonly ObjectPool<SmartPathJobDataContainer> pool = new(() => new(), actionOnRelease: v => v.Clear(), actionOnDestroy: v => v.Dispose());
 
     internal static readonly List<string> linkNames = [];
+
+    internal int agentTypeID;
+    internal int areaMask;
+
+    internal Vector3 pathStart;
+    internal NativeArray<Vector3> pathGoals;
+    internal int pathGoalCount;
+    internal NativeArray<SmartFindPathJob.PathResult> pathResults;
 
     internal readonly List<SmartPathLinkNode> linkOriginNodes = [];
     internal readonly List<SmartPathLinkNode> linkDestinationNodes = [];
@@ -72,28 +80,60 @@ internal class SmartPathJobDataContainer : IDisposable
     internal int linkCount;
     internal int linkDestinationCount;
 
-    internal static SmartPathJobDataContainer GetJobData(NavMeshAgent agent)
+    internal static SmartPathJobDataContainer GetJobData(NavMeshAgent agent, Vector3 origin, Vector3[] destinations, int destinationCount)
     {
         var jobData = pool.Get();
-        jobData.FillJobData(agent);
+        jobData.FillJobData(agent, origin, destinations, destinationCount);
         return jobData;
+    }
+
+    internal static SmartPathJobDataContainer GetJobData(NavMeshAgent agent, Vector3 origin, Vector3[] destinations)
+    {
+        return GetJobData(agent, origin, destinations, destinations.Length);
+    }
+
+    internal static SmartPathJobDataContainer GetJobData(NavMeshAgent agent, Vector3 origin, List<Vector3> destinations)
+    {
+        return GetJobData(agent, origin, NoAllocHelpers.ExtractArrayFromListT(destinations), destinations.Count);
     }
 
     internal static void ReleaseJobData(ref SmartPathJobDataContainer jobData)
     {
-        jobData.Clear();
+        if (jobData == null)
+            return;
         pool.Release(jobData);
         jobData = null;
     }
 
-    internal void FillJobData(NavMeshAgent agent)
+    internal void FillJobData(NavMeshAgent agent, Vector3 origin, Vector3[] destinations, int destinationCount)
     {
-        var elevatorLinkCount = 0;
+        agentTypeID = agent.agentTypeID;
+        areaMask = agent.areaMask;
 
+        pathStart = origin;
+
+        // Populate all the goals into a native array.
+        if (destinationCount > pathGoals.Length)
+        {
+            pathGoals.Dispose();
+            pathGoals = new NativeArray<Vector3>(destinationCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            pathResults = new NativeArray<SmartFindPathJob.PathResult>(destinationCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+        }
+        for (var goalIndex = 0; goalIndex < destinationCount; goalIndex++)
+        {
+            pathGoals[goalIndex] = destinations[goalIndex];
+            pathResults[goalIndex] = new();
+        }
+        pathGoalCount = destinationCount;
+
+        // Count the number of links we'll need to pass to the job.
+        // Elevators require a link for each floor as well as one from the inside of the elevator.
+        var elevatorLinkCount = 0;
         foreach (var elevatorFloors in SmartPathLinks.elevators.Values)
             elevatorLinkCount += elevatorFloors.Count + 1;
-
         linkCount = SmartPathLinks.entranceTeleports.Count + elevatorLinkCount;
+
+        // Expand all the link data arrays to fit the new data.
         if (linkCount > linkOrigins.Length)
         {
             linkOrigins.Dispose();
@@ -109,6 +149,7 @@ internal class SmartPathJobDataContainer : IDisposable
         var fillNames = linkNames.Count == 0;
         var i = 0;
 
+        // Populate the entrance teleports' links.
         foreach (var entranceLink in SmartPathLinks.entranceTeleports.Values)
         {
             var node = SmartPathLinkNode.EntranceTeleport(entranceLink.teleport);
@@ -128,6 +169,7 @@ internal class SmartPathJobDataContainer : IDisposable
             i++;
         }
 
+        // Populate the elevators' floors' links.
         foreach (var (elevator, floors) in SmartPathLinks.elevators)
         {
             // Add links from each floor to each other floor, using the traversal cost from the elevator interface.
@@ -200,6 +242,7 @@ internal class SmartPathJobDataContainer : IDisposable
             i++;
         }
 
+        // Copy the collected link destinations into a native array to pass to the job.
         if (linkDestinationsManaged.Count > linkDestinations.Length)
         {
             linkDestinations.Dispose();
@@ -209,6 +252,7 @@ internal class SmartPathJobDataContainer : IDisposable
         NativeArray<Vector3>.Copy(NoAllocHelpers.ExtractArrayFromListT(linkDestinationsManaged), linkDestinations, linkDestinationsManaged.Count);
         linkDestinationCount = linkDestinationsManaged.Count;
 
+        // Copy the collected link costs into a native array to pass to the job.
         if (linkDestinationCostsManaged.Count > linkDestinationCosts.Length)
         {
             linkDestinationCosts.Dispose();

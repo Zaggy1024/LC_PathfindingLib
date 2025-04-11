@@ -9,7 +9,6 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
-using UnityEngine.AI;
 using UnityEngine.Experimental.AI;
 
 using PathfindingLib.API;
@@ -27,12 +26,14 @@ using System.Text;
 
 namespace PathfindingLib.Jobs;
 
-public struct SmartFindPathJob : IJob
+internal struct SmartFindPathJob : IJob
 {
+    internal const int PlaceholderLinkIndex = int.MinValue;
+
     internal struct PathResult()
     {
-        internal int linkIndex = -1;
-        internal int linkDestinationIndex = -1;
+        internal int linkIndex = PlaceholderLinkIndex;
+        internal int linkDestinationIndex = PlaceholderLinkIndex;
         internal float pathLength = float.PositiveInfinity;
     }
 
@@ -67,13 +68,17 @@ public struct SmartFindPathJob : IJob
     // Outputs:
     [WriteOnly] internal NativeArray<PathResult> results;
 
-    private void Initialize(SmartPathJobDataContainer data, Vector3 origin, Vector3[] destinations, int destinationCount, NavMeshAgent agent)
+    internal void Initialize(SmartPathJobDataContainer data)
     {
         ThreadQueriesRef = PathfindingJobSharedResources.GetPerThreadQueriesArray();
 
-        agentTypeID = agent.agentTypeID;
-        areaMask = agent.areaMask;
-        start = origin;
+        agentTypeID = data.agentTypeID;
+        areaMask = data.areaMask;
+
+        start = data.pathStart;
+        goals = data.pathGoals;
+        goalCount = data.pathGoalCount;
+        results = data.pathResults;
 
         // Shhhh, compiler...
         threadIndex = -1;
@@ -89,37 +94,7 @@ public struct SmartFindPathJob : IJob
         linkCount = data.linkCount;
         linkDestinationCount = data.linkDestinationCount;
 
-        EnsureDestinationCount(destinationCount);
-        goalCount = destinationCount;
-
-        if (goalCount <= 0)
-            throw new ArgumentOutOfRangeException($"{destinationCount} is not a valid number of goals ( at least 1 required )");
-
-        NativeArray<Vector3>.Copy(destinations, goals, destinationCount);
-        results.SetAllElements(new());
-
         vertexCount = linkCount + linkDestinationCount + 2;
-    }
-
-    internal void Initialize(SmartPathJobDataContainer data, Vector3 origin, Vector3[] destinations, NavMeshAgent agent)
-    {
-        Initialize(data, origin, destinations, destinations.Length, agent);
-    }
-
-    internal void Initialize(SmartPathJobDataContainer data, Vector3 origin, List<Vector3> destinations, NavMeshAgent agent)
-    {
-        Initialize(data, origin, NoAllocHelpers.ExtractArrayFromListT(destinations), destinations.Count, agent);
-    }
-
-    private void EnsureDestinationCount(int count)
-    {
-        if (goals.Length >= count)
-            return;
-
-        DisposeResizeableArrays();
-
-        goals = new NativeArray<Vector3>(count, Allocator.Persistent);
-        results = new NativeArray<PathResult>(count, Allocator.Persistent);
     }
 
     private void DisposeResizeableArrays()
@@ -211,6 +186,13 @@ public struct SmartFindPathJob : IJob
         return distance;
     }
 
+    private readonly void FailPath(int index)
+    {
+        ref var result = ref results.GetRef(index);
+        result.linkIndex = -1;
+        result.linkDestinationIndex = -1;
+    }
+
     public void Execute()
     {
 #if SMART_PATHFINDING_DEBUG
@@ -238,6 +220,8 @@ public struct SmartFindPathJob : IJob
 
                 PathfindingLibPlugin.Instance.Logger.LogInfo("Path failed, start position is isolated.");
 #endif
+
+                FailPath(goalIndex);
                 continue;
             }
 
@@ -249,6 +233,8 @@ public struct SmartFindPathJob : IJob
 
                 PathfindingLibPlugin.Instance.Logger.LogInfo("Path failed, goal position is isolated.");
 #endif
+
+                FailPath(goalIndex);
                 continue;
             }
 

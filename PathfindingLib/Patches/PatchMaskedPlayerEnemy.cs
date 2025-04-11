@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 
@@ -37,15 +37,11 @@ internal class PatchMaskedPlayerEnemy
 
         if (tasks.TryGetValue(masked, out var task))
         {
-            if (!task.IsComplete)
+            if (!task.IsResultReady(0))
                 return result;
-            if (!task.Result.HasValue)
+
+            if (task.GetResult(0) is SmartPathDestination destination)
             {
-                result = GoToDestinationResult.Failure;
-            }
-            else
-            {
-                var destination = task.Result.Value;
                 result = GoToDestinationResult.Success;
                 PathfindingLibPlugin.Instance.Logger.LogInfo($"Destination result is: {destination}");
 
@@ -73,9 +69,14 @@ internal class PatchMaskedPlayerEnemy
 
                 PathfindingLibPlugin.Instance.Logger.LogInfo($"Destination is {masked.destination}");
             }
+            else
+            {
+                result = GoToDestinationResult.Failure;
+            }
         }
 
-        task = SmartPathTask.StartPathTask(masked.transform.position, targetPosition, masked.agent);
+        task = new SmartPathTask();
+        task.StartPathTask(masked.agent, masked.transform.position, targetPosition);
         tasks[masked] = task;
         return result;
     }
