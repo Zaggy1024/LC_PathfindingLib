@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 
 using BepInEx;
 using BepInEx.Logging;
@@ -30,7 +30,6 @@ public class PathfindingLibPlugin : BaseUnityPlugin
 
         harmony.PatchAll(typeof(PatchNavMeshSurface));
         harmony.PatchAll(typeof(PatchEntranceTeleport));
-
 
         harmony.PatchAll(typeof(PatchMaskedPlayerEnemy));
     }
