@@ -1,8 +1,5 @@
-﻿#define SMART_PATHFINDING_DEBUG
-
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -17,6 +14,7 @@ using PathfindingLib.Utilities;
 using PathfindingLib.Utilities.Collections;
 
 #if BENCHMARKING
+using System.Diagnostics;
 using Unity.Profiling;
 #endif
 
@@ -200,15 +198,19 @@ internal struct SmartFindPathJob : IJob
             InitVerticesCapture(goalCount);
 #endif
 
+#if BENCHMARKING
         var jobStopwatch = Stopwatch.StartNew();
         var goalStopwatch = new Stopwatch();
+#endif
 
         var memory = new PathfinderMemory(vertexCount);
         PopulateVertices(memory);
 
         for (var goalIndex = 0; goalIndex < goalCount; goalIndex++)
         {
+#if BENCHMARKING
             goalStopwatch.Restart();
+#endif
 
             SetNewGoal(memory, goalIndex);
 
@@ -238,13 +240,12 @@ internal struct SmartFindPathJob : IJob
                 continue;
             }
 
-            goalStopwatch.Restart();
-
             var result = CalculatePath(memory);
 
+#if BENCHMARKING
             goalStopwatch.Stop();
-
-            PathfindingLibPlugin.Instance.Logger.LogInfo($"Path to Goal{goalIndex} took {goalStopwatch.Elapsed.TotalMilliseconds}ms");
+            PathfindingLibPlugin.Instance.Logger.LogInfo($"Path to Goal {goalIndex} took {goalStopwatch.Elapsed.TotalMilliseconds}ms");
+#endif
 
 #if SMART_PATHFINDING_DEBUG
             if (captureNextVertices)
@@ -265,7 +266,9 @@ internal struct SmartFindPathJob : IJob
 
         memory.Dispose();
 
+#if BENCHMARKING
         PathfindingLibPlugin.Instance.Logger.LogWarning($"Job took {jobStopwatch.Elapsed.TotalMilliseconds}ms.");
+#endif
 
 #if SMART_PATHFINDING_DEBUG
         captureNextVertices = false;
