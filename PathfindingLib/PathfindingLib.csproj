@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>netstandard2.1</TargetFramework>
@@ -11,7 +11,7 @@
 
     <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
         <Optimize>True</Optimize>
-        <DefineConstants>BENCHMARKING</DefineConstants>
+        <DefineConstants>BENCHMARKING;SMART_PATHFINDING_DEBUG</DefineConstants>
     </PropertyGroup>
 
     <ItemGroup>
