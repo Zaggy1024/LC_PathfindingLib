@@ -880,12 +880,12 @@ internal struct SmartFindPathJob : IJob
                 break;
             }
 
-            var bestIndex = memory.GetBestSuccessor(currIndex, out var cost);
+            var bestIndex = memory.GetBestSuccessor(currIndex, out _);
 
             if (bestIndex == -1)
                 break;
 
-            pathCost += cost;
+            pathCost += memory.GetEdge(currIndex, bestIndex).cost;
             currIndex = bestIndex;
 
             ref var vertex = ref memory.GetVertex(currIndex);
