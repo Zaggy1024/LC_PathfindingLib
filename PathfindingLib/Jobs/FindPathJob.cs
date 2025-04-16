@@ -1,8 +1,9 @@
-﻿using System;
+using System;
 
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.Experimental.AI;
@@ -151,7 +152,7 @@ public struct FindPathJob : IJob, IDisposable
         var pathNodes = new NativeArray<PolygonId>(pathNodesSize, Allocator.Temp);
         query.GetPathResult(pathNodes);
 
-        using var path = new NativeArray<NavMeshLocation>(NavMeshQueryUtils.RecommendedCornerCount, Allocator.Temp);
+        using var path = new NativeArray<float3>(NavMeshQueryUtils.RecommendedCornerCount, Allocator.Temp);
         var straightPathStatus = NavMeshQueryUtils.FindStraightPath(query, Origin, Destination, pathNodes, pathNodesSize, path, out var pathSize);
         pathNodes.Dispose();
 
@@ -169,8 +170,8 @@ public struct FindPathJob : IJob, IDisposable
         }
 
         // Check if the end of the path is close enough to the target.
-        var endPosition = path[pathSize - 1].position;
-        var endDistance = (endPosition - Destination).sqrMagnitude;
+        var endPosition = path[pathSize - 1];
+        var endDistance = math.distancesq(Destination, endPosition);
         if (endDistance > MaximumEndpointDistanceSquared)
         {
             Status[0] = PathQueryStatus.Failure;
@@ -179,7 +180,7 @@ public struct FindPathJob : IJob, IDisposable
 
         var distance = 0f;
         for (var i = 1; i < pathSize; i++)
-            distance += Vector3.Distance(path[i - 1].position, path[i].position);
+            distance += math.distance(path[i - 1], path[i]);
         PathLength[0] = distance;
 
         Status[0] = PathQueryStatus.Success;

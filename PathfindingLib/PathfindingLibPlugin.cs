@@ -6,6 +6,7 @@ using HarmonyLib;
 
 using PathfindingLib.Patches;
 using PathfindingLib.Patches.Native;
+using PathfindingLib.Utilities;
 
 namespace PathfindingLib;
 
@@ -46,6 +47,7 @@ public class PathfindingLibPlugin : BaseUnityPlugin
     private static void ApplyAllNativePatches()
     {
         var module = GetUnityPlayerModule();
+        NavMeshQueryUtils.SetUpNativeMethodPointers(module.BaseAddress);
         PatchApplyCarvingResults.Apply(module.BaseAddress);
     }
 }
