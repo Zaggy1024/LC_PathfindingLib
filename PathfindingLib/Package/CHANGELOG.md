@@ -1,3 +1,7 @@
+## Version 0.1.0
+- Made `NavMeshQueryUtils.FindStraightPath` call through to the Unity runtime instead of reimplementing the algorithm. The results should now match the output from `NavMeshPath.corners` perfectly.
+- Deprecated the original overload of `NavMeshQueryUtils.FindStraightPath` in favor of one that requires less allocations to match the native Unity function's signature.
+
 ## Version 0.0.14
 - Fixed a small leak of single-element arrays in `FindPathJob`.
 
