@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.InteropServices;
 
 using Unity.Collections;
@@ -26,6 +26,17 @@ public static class NavMeshQueryUtils
     /// <see cref="FindStraightPath"/>.
     /// </summary>
     public const int RecommendedCornerCount = 128;
+
+    /// <summary>
+    /// The number of path corners required to be allocated when calculating a straight path using
+    /// <see cref="FindStraightPath"/>.
+    /// </summary>
+    /// <param name="pathSize">The number of polygons in the path.</param>
+    /// <returns>The number of elements to allocate and pass to <see cref="FindStraightPath"/>.</returns>
+    public static int RequiredCornerCount(int pathPolygonCount)
+    {
+        return pathPolygonCount + 2;
+    }
 
     /// <summary>
     /// Calculate a straight path from the data produced by finding a path with NavMeshQuery.
