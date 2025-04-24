@@ -9,7 +9,7 @@ namespace PathfindingLib.Patches.Native;
 
 internal static class PatchApplyCarveResults
 {
-    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate void ApplyCarveResultsDelegate(IntPtr thisNavMeshCarving);
 
     private static NativeDetour detour;
