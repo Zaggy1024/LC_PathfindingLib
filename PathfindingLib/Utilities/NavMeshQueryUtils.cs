@@ -1,9 +1,10 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
+using UnityEngine;
 using UnityEngine.Experimental.AI;
 
 using PathfindingLib.Patches.Native;
@@ -11,7 +12,7 @@ using PathfindingLib.Patches.Native;
 namespace PathfindingLib.Utilities;
 
 [Flags]
-public enum StraightPathFlags
+public enum StraightPathFlags : byte
 {
     Start = 0x01,
     End = 0x02,
@@ -43,17 +44,26 @@ public static class NavMeshQueryUtils
     /// <param name="straightPathCount">The number of corners in the resulting straight path.</param>
     /// <returns>The completion status of the calculation, with any relevant detail flags.</returns>
     public static unsafe PathQueryStatus FindStraightPath(this NavMeshQuery query,
-        in float3 startPos, in float3 endPos,
+        in Vector3 startPos, in Vector3 endPos,
         in NativeSlice<PolygonId> path, int pathSize,
-        in NativeArray<float3> straightPath,
+        in NativeArray<Vector3> straightPath,
         in NativeArray<StraightPathFlags> straightPathFlags,
         in NativeArray<PolygonId> straightPathRefs,
         out int straightPathCount)
     {
         if (path.Stride != UnsafeUtility.SizeOf<PolygonId>())
             throw new ArgumentException("Path slice must have a stride equal to the size of PolygonId");
+
         straightPathCount = 0;
-        return findStraightPathMethod(query, in startPos, in endPos, path.GetPtr(), pathSize, straightPath.GetPtr(), straightPathFlags.GetPtr(), straightPathRefs.GetPtr(), ref straightPathCount, straightPath.Length);
+
+        // NavMeshPath::m_TargetPosition gets moved to the closest point on the last polygon to the destination.
+        // That is then passed to FindStraightPath when NavMeshPath::CalculateCorners() is called.
+        // We must mirror that, or partial paths will always reach their destination.
+        var endPosStatus = NavMeshQuery.GetClosestPointOnPoly(query.m_NavMeshQuery, path[pathSize - 1], endPos, out var endPosOnPath);
+        if (endPosStatus < 0)
+            return endPosStatus;
+
+        return findStraightPathMethod(query, in startPos, in endPosOnPath, path.GetPtr(), pathSize, straightPath.GetPtr(), straightPathFlags.GetPtr(), straightPathRefs.GetPtr(), ref straightPathCount, straightPath.Length);
     }
 
     /// <summary>
@@ -71,9 +81,9 @@ public static class NavMeshQueryUtils
     /// <param name="straightPathCount">The number of corners in the resulting straight path.</param>
     /// <returns>The completion status of the calculation, with any relevant detail flags.</returns>
     public static PathQueryStatus FindStraightPath(this NavMeshQuery query,
-        in float3 startPos, in float3 endPos,
+        in Vector3 startPos, in Vector3 endPos,
         in NativeSlice<PolygonId> path, int pathSize,
-        in NativeArray<float3> straightPath,
+        in NativeArray<Vector3> straightPath,
         out int straightPathCount)
     {
         using var straightPathFlags = new NativeArray<StraightPathFlags>(straightPath.Length, Allocator.Temp);
@@ -95,17 +105,17 @@ public static class NavMeshQueryUtils
     /// <param name="straightPath">An array that will be filled with the resulting straight path.</param>
     /// <param name="straightPathCount">The number of corners in the resulting straight path corners.</param>
     /// <returns>The completion status of the calculation, with any relevant detail flags.</returns>
-    [Obsolete("Use NativeArray<float3> for the straightPath parameter")]
+    [Obsolete("Use NativeArray<Vector3> for the straightPath parameter")]
     public static PathQueryStatus FindStraightPath(this NavMeshQuery query,
         float3 startPos, float3 endPos,
         NativeSlice<PolygonId> path, int pathSize,
         NativeArray<NavMeshLocation> straightPath,
         out int straightPathCount)
     {
-        using var straightPathPositions = new NativeArray<float3>(straightPath.Length, Allocator.Temp);
+        using var straightPathPositions = new NativeArray<Vector3>(straightPath.Length, Allocator.Temp);
         using var straightPathFlags = new NativeArray<StraightPathFlags>(straightPath.Length, Allocator.Temp);
         using var straightPathRefs = new NativeArray<PolygonId>(straightPath.Length, Allocator.Temp);
-        var result = FindStraightPath(query, in startPos, in endPos, path, pathSize, straightPathPositions, straightPathFlags, straightPathRefs, out straightPathCount);
+        var result = FindStraightPath(query, startPos, endPos, path, pathSize, straightPathPositions, straightPathFlags, straightPathRefs, out straightPathCount);
         for (var i = 0; i < straightPathCount; i++)
             straightPath[i] = new(straightPathPositions[i], straightPathRefs[i]);
         return result;
@@ -113,9 +123,9 @@ public static class NavMeshQueryUtils
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private unsafe delegate PathQueryStatus FindStraightPathDelegate(NavMeshQuery self,
-        in float3 startPos, in float3 endPos,
+        in Vector3 startPos, in Vector3 endPos,
         PolygonId* path, int pathSize,
-        float3* straightPath,
+        Vector3* straightPath,
         StraightPathFlags* straightPathFlags,
         PolygonId* straightPathRefs,
         ref int straightPathCount,

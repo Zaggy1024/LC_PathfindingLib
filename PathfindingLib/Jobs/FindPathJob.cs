@@ -152,7 +152,7 @@ public struct FindPathJob : IJob, IDisposable
         var pathNodes = new NativeArray<PolygonId>(pathNodesSize, Allocator.Temp);
         query.GetPathResult(pathNodes);
 
-        using var path = new NativeArray<float3>(NavMeshQueryUtils.RecommendedCornerCount, Allocator.Temp);
+        using var path = new NativeArray<Vector3>(NavMeshQueryUtils.RecommendedCornerCount, Allocator.Temp);
         var straightPathStatus = NavMeshQueryUtils.FindStraightPath(query, Origin, Destination, pathNodes, pathNodesSize, path, out var pathSize);
         pathNodes.Dispose();
 
