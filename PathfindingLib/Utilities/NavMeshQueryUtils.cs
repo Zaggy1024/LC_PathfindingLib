@@ -52,7 +52,11 @@ public static class NavMeshQueryUtils
         out int straightPathCount)
     {
         if (path.Stride != UnsafeUtility.SizeOf<PolygonId>())
-            throw new ArgumentException("Path slice must have a stride equal to the size of PolygonId");
+            throw new ArgumentException("Path slice must have a stride equal to the size of PolygonId.");
+        if (straightPathFlags.Length < straightPath.Length)
+            throw new ArgumentException("Straight path flags buffer is too small.");
+        if (straightPathRefs.Length < straightPath.Length)
+            throw new ArgumentException("Straight path refs buffer is too small.");
 
         straightPathCount = 0;
 
