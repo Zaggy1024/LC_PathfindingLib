@@ -1,3 +1,7 @@
+## Version 0.1.1
+- Fixed an issue that would cause partial paths passed to `NavMeshQueryUtils.FindStraightPath` to result in a final corner at the destination.
+- Changed the new overloads of `NavMeshQueryUtils.FindStraightPath` to use `Vector3` instead of `float3`, as the Unity runtime assumes the memory layout matches `Vector3` internally.
+
 ## Version 0.1.0
 - Made `NavMeshQueryUtils.FindStraightPath` call through to the Unity runtime instead of reimplementing the algorithm. The results should now match the output from `NavMeshPath.corners` perfectly.
 - Deprecated the original overload of `NavMeshQueryUtils.FindStraightPath` in favor of one that requires less allocations to match the native Unity function's signature.

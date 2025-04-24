@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 
 using BepInEx;
 using BepInEx.Logging;
@@ -15,7 +15,7 @@ public class PathfindingLibPlugin : BaseUnityPlugin
 {
     public const string PluginName = "PathfindingLib";
     public const string PluginGUID = "Zaggy1024." + PluginName;
-    public const string PluginVersion = "0.1.0";
+    public const string PluginVersion = "0.1.1";
 
     private readonly Harmony harmony = new(PluginGUID);
 
