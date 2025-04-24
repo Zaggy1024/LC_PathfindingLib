@@ -7,18 +7,18 @@ using PathfindingLib.API;
 
 namespace PathfindingLib.Patches.Native;
 
-internal static class PatchApplyCarvingResults
+internal static class PatchApplyCarveResults
 {
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-    private delegate void ApplyCarvingResultsDelegate(IntPtr thisNavMeshCarving);
+    private delegate void ApplyCarveResultsDelegate(IntPtr thisNavMeshCarving);
 
     private static NativeDetour detour;
 
-    private static ApplyCarvingResultsDelegate original;
+    private static ApplyCarveResultsDelegate original;
 
     internal static void Apply(IntPtr baseAddress)
     {
-        // This should be set to the offset of NavMeshCarving::ApplyCarvingResults(). When loading the
+        // This should be set to the offset of NavMeshCarving::ApplyCarveResults(). When loading the
         // UnityPlayer dll, you may see the address including an offset like 0x180000000. If so, subtract
         // the base address (the address of the header) from the address of the function.
         var functionOffset = 0xA64E80UL;
@@ -26,15 +26,15 @@ internal static class PatchApplyCarvingResults
             functionOffset = 0x12C1890UL;
         var functionAddress = (IntPtr)((ulong)baseAddress + functionOffset);
 
-        var hookPtr = Marshal.GetFunctionPointerForDelegate<ApplyCarvingResultsDelegate>(ApplyCarvingResultsDetour);
+        var hookPtr = Marshal.GetFunctionPointerForDelegate<ApplyCarveResultsDelegate>(ApplyCarveResultsDetour);
 
         detour = new NativeDetour(functionAddress, hookPtr);
-        original = detour.GenerateTrampoline<ApplyCarvingResultsDelegate>();
+        original = detour.GenerateTrampoline<ApplyCarveResultsDelegate>();
     }
 
-    private unsafe static void ApplyCarvingResultsDetour(IntPtr thisNavMeshCarving)
+    private unsafe static void ApplyCarveResultsDetour(IntPtr thisNavMeshCarving)
     {
-        // Within NavMeshCarving::ApplyCarvingResults(), these offsets are derived from a statement
+        // Within NavMeshCarving::ApplyCarveResults(), these offsets are derived from a statement
         // that decompiles similarly to the following in a debug build:
         //   auto var = (*(longlong*)(this + 0x40) - *(longlong*)(this + 0x38)) / 0x50;
         // Note that the division by 0x50 may be decompiled instead as a bit shift right followed by an

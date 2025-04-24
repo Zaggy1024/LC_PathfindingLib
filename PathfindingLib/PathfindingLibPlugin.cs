@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 
 using BepInEx;
 using BepInEx.Logging;
@@ -48,6 +48,6 @@ public class PathfindingLibPlugin : BaseUnityPlugin
     {
         var module = GetUnityPlayerModule();
         NavMeshQueryUtils.SetUpNativeMethodPointers(module.BaseAddress);
-        PatchApplyCarvingResults.Apply(module.BaseAddress);
+        PatchApplyCarveResults.Apply(module.BaseAddress);
     }
 }
