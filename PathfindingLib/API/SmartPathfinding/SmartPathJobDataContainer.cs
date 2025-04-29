@@ -128,6 +128,9 @@ internal class SmartPathJobDataContainer : IDisposable
         // Populate the entrance teleports' links.
         foreach (var entranceLink in SmartPathLinks.entranceTeleports.Values)
         {
+            if (entranceLink.teleport == null || !entranceLink.teleport.isActiveAndEnabled)
+                continue;
+
             var linkFlag = entranceLink.teleport.entranceId == 0 ? SmartPathfindingLinkFlags.MainEntrance : SmartPathfindingLinkFlags.FireExits;
             if ((allowedLinks & linkFlag) == 0)
                 continue;
