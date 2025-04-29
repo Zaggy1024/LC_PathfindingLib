@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 
 using UnityEngine;
 
@@ -31,7 +31,7 @@ internal static class SmartPathLinks
         }
     }
 
-    public static HashSet<ElevatorFloor> GetFloors(IElevator elevator)
+    internal static HashSet<ElevatorFloor> GetFloors(IElevator elevator)
     {
         if (!elevators.TryGetValue(elevator, out var floors))
         {
@@ -42,13 +42,13 @@ internal static class SmartPathLinks
         return floors;
     }
 
-    public static void RegisterElevatorFloor(ElevatorFloor floor)
+    internal static void RegisterElevatorFloor(ElevatorFloor floor)
     {
         var floors = GetFloors(floor.Elevator);
         floors.Add(floor);
     }
 
-    public static void UnregisterElevatorFloor(ElevatorFloor floor)
+    internal static void UnregisterElevatorFloor(ElevatorFloor floor)
     {
         var elevator = floor.Elevator;
         var floors = GetFloors(elevator);
