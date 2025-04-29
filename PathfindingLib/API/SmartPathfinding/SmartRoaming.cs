@@ -9,9 +9,11 @@ public static class SmartRoaming
 {
     public static bool useVanilla = false;
 
+    public delegate void SmartTraversalFunction(EnemyAI enemy, in SmartPathDestination destination);
+
     private static readonly List<Vector3> unsearchedNodePositions = [];
 
-    public static void StartSmartSearch(this EnemyAI enemy, Vector3 startOfSearch, AISearchRoutine newSearch = null)
+    public static void StartSmartSearch(this EnemyAI enemy, Vector3 startOfSearch, SmartTraversalFunction traversalFunction, AISearchRoutine newSearch = null)
     {
         newSearch ??= new AISearchRoutine();
 
@@ -28,13 +30,15 @@ public static class SmartRoaming
         if (useVanilla)
             enemy.searchCoroutine = enemy.StartCoroutine(enemy.CurrentSearchCoroutine());
         else
-            enemy.searchCoroutine = enemy.StartCoroutine(enemy.CurrentSmartSearchCoroutine());
+            enemy.searchCoroutine = enemy.StartCoroutine(enemy.CurrentSmartSearchCoroutine(traversalFunction));
         enemy.currentSearch.inProgress = true;
     }
 
-    public static IEnumerator CurrentSmartSearchCoroutine(this EnemyAI enemy)
+    public static IEnumerator CurrentSmartSearchCoroutine(this EnemyAI enemy, SmartTraversalFunction traversalFunction)
     {
         yield return null;
+
+        var currentNodePathTask = new SmartPathTask();
 
         while (enemy.searchCoroutine != null && enemy.IsOwner)
         {
@@ -78,7 +82,14 @@ public static class SmartRoaming
 
             // Go to the selected node.
             enemy.currentSearch.unsearchedNodes.Remove(enemy.currentSearch.currentTargetNode);
-            enemy.SetDestinationToPosition(enemy.currentSearch.currentTargetNode.transform.position);
+
+            void GoToCurrentDestination()
+            {
+                if (currentNodePathTask.IsResultReady(0) && currentNodePathTask.GetResult(0) is SmartPathDestination destination)
+                    traversalFunction(enemy, in destination);
+                currentNodePathTask.StartPathTask(enemy.agent, enemy.transform.position, enemy.currentSearch.currentTargetNode.transform.position);
+            }
+            GoToCurrentDestination();
 
             // Eliminate all nodes within the area of the current target.
             var currentTargetPos = enemy.currentSearch.currentTargetNode.transform.position;
@@ -102,19 +113,33 @@ public static class SmartRoaming
             // Wait for the current target to be reached.
             currentTargetPos = enemy.currentSearch.currentTargetNode.transform.position;
             searchPrecisionSqr = enemy.currentSearch.searchPrecision * enemy.currentSearch.searchPrecision;
-            var pathingEndTime = Time.time + 16f;
-            while (enemy.searchCoroutine != null && Time.time < pathingEndTime)
-            {
-                if (enemy.currentSearch.onlySearchNodesInLOS && Physics.Linecast(currentTargetPos, enemy.currentSearch.currentSearchStartPosition, StartOfRound.Instance.collidersAndRoomMaskAndDefault, QueryTriggerInteraction.Ignore))
-                    break;
 
-                yield return new WaitForSeconds(0.5f);
+            var pathingTime = 16f;
+            var checkTime = 0f;
+            while (enemy.searchCoroutine != null && pathingTime >= 0)
+            {
+                pathingTime -= Time.deltaTime;
+
+                if (checkTime <= 0)
+                {
+                    if (enemy.currentSearch.onlySearchNodesInLOS && Physics.Linecast(currentTargetPos, enemy.currentSearch.currentSearchStartPosition, StartOfRound.Instance.collidersAndRoomMaskAndDefault, QueryTriggerInteraction.Ignore))
+                        break;
+                    checkTime = 0.5f;
+                }
+
+                checkTime -= Time.deltaTime;
+
+                yield return null;
+                if (enemy.searchCoroutine == null)
+                    break;
 
                 if ((currentTargetPos - enemy.transform.position).sqrMagnitude < searchPrecisionSqr)
                 {
                     enemy.ReachedNodeInSearch();
                     break;
                 }
+
+                GoToCurrentDestination();
             }
         }
 
