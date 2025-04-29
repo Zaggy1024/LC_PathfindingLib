@@ -14,6 +14,6 @@ public sealed class ElevatorFloor(IElevator elevator, Transform buttonPosition)
     }
     public override string ToString()
     {
-        return $"{Elevator} Floor @ {CallButtonNavMeshNode}";
+        return $"{Elevator} Floor ({Elevator.GetFloorName(this)})";
     }
 }

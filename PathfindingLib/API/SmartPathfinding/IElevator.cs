@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 namespace PathfindingLib.API.SmartPathfinding;
 
@@ -17,4 +17,9 @@ public interface IElevator
     public float TimeToCompleteCurrentMovement();
     public float TimeFromFloorToFloor(ElevatorFloor a, ElevatorFloor b);
     public void GoToFloor(ElevatorFloor floor);
+
+    public virtual string GetFloorName(ElevatorFloor floor)
+    {
+        return floor.CallButtonNavMeshNode.name;
+    }
 }
