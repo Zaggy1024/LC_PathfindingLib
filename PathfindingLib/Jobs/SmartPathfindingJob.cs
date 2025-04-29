@@ -24,7 +24,7 @@ using System.Text;
 
 namespace PathfindingLib.Jobs;
 
-internal struct SmartFindPathJob : IJob
+internal struct SmartPathfindingJob : IJob
 {
     internal const int PlaceholderLinkIndex = int.MinValue;
 
@@ -568,7 +568,7 @@ internal struct SmartFindPathJob : IJob
 
         internal delegate void EdgeProcessor(in PathEdge edge);
 
-        internal readonly bool HasPredecessors(int vertexIndex, in SmartFindPathJob job)
+        internal readonly bool HasPredecessors(int vertexIndex, in SmartPathfindingJob job)
         {
             for (var i = 0; i < vertexCount; i++)
             {
@@ -589,7 +589,7 @@ internal struct SmartFindPathJob : IJob
             return false;
         }
 
-        internal readonly void CalculatePredecessors(int vertexIndex, in SmartFindPathJob job)
+        internal readonly void CalculatePredecessors(int vertexIndex, in SmartPathfindingJob job)
         {
             for (var i = 0; i < vertexCount; i++)
             {
@@ -618,7 +618,7 @@ internal struct SmartFindPathJob : IJob
             }
         }
 
-        internal readonly bool HasSuccessors(int vertexIndex, in SmartFindPathJob job)
+        internal readonly bool HasSuccessors(int vertexIndex, in SmartPathfindingJob job)
         {
             for (var i = 0; i < vertexCount; i++)
             {
@@ -714,7 +714,7 @@ internal struct SmartFindPathJob : IJob
         internal readonly int destination = destinationIndex;
         internal float cost = float.NaN;
 
-        internal void CalculateCostIfMissing(in SmartFindPathJob job)
+        internal void CalculateCostIfMissing(in SmartPathfindingJob job)
         {
             if (!isValid)
                 return;

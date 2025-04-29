@@ -63,7 +63,7 @@ internal sealed class SmartPathJobDataContainer : IDisposable
 
     internal Vector3 pathStart;
     internal NativeArray<Vector3> pathGoals;
-    internal NativeArray<SmartFindPathJob.PathResult> pathResults;
+    internal NativeArray<SmartPathfindingJob.PathResult> pathResults;
     internal int pathGoalCount;
 
     internal readonly List<SmartPathLinkNode> linkOriginNodes = [];
@@ -114,7 +114,7 @@ internal sealed class SmartPathJobDataContainer : IDisposable
         {
             pathGoals.Dispose();
             pathGoals = new NativeArray<Vector3>(destinationCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-            pathResults = new NativeArray<SmartFindPathJob.PathResult>(destinationCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            pathResults = new NativeArray<SmartPathfindingJob.PathResult>(destinationCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
         }
         for (var goalIndex = 0; goalIndex < destinationCount; goalIndex++)
         {
@@ -144,7 +144,7 @@ internal sealed class SmartPathJobDataContainer : IDisposable
             linkDestinations.Add(entranceLink.exit.position);
 
             linkDestinationCostOffsets.Add(linkDestinationCosts.Count);
-            linkDestinationCosts.Add(SmartFindPathJob.MinEdgeCost);
+            linkDestinationCosts.Add(SmartPathfindingJob.MinEdgeCost);
 
             if (fillNames)
                 linkNames.Add(entranceLink.teleport.ToString());

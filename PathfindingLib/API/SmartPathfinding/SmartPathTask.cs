@@ -19,7 +19,7 @@ public sealed class SmartPathTask : IDisposable
     private static readonly Vector3[] singleDestination = [Vector3.zero];
 
     private SmartPathJobDataContainer? jobData;
-    private SmartFindPathJob job;
+    private SmartPathfindingJob job;
     private JobHandle jobHandle;
 
     public void StartPathTask(NavMeshAgent agent, Vector3 origin, Vector3 destination, SmartPathfindingLinkFlags allowedLinks)
@@ -73,7 +73,7 @@ public sealed class SmartPathTask : IDisposable
         if (index >= jobData!.pathGoalCount)
             throw new IndexOutOfRangeException($"Index {index} is larger than destination count {jobData!.pathGoalCount}.");
 
-        return job.results[index].linkIndex != SmartFindPathJob.PlaceholderLinkIndex;
+        return job.results[index].linkIndex != SmartPathfindingJob.PlaceholderLinkIndex;
     }
 
     public bool IsComplete => IsResultReady(jobData!.pathGoalCount - 1) && jobHandle.IsCompleted;
@@ -89,7 +89,7 @@ public sealed class SmartPathTask : IDisposable
 
         ref var result = ref job.results.GetRef(index);
 
-        if (result.linkIndex == SmartFindPathJob.PlaceholderLinkIndex)
+        if (result.linkIndex == SmartPathfindingJob.PlaceholderLinkIndex)
             throw new InvalidOperationException("Result is not ready.");
         if (result.linkIndex == -1)
             return false;
@@ -108,7 +108,7 @@ public sealed class SmartPathTask : IDisposable
 
         ref var result = ref job.results.GetRef(index);
 
-        if (result.linkIndex == SmartFindPathJob.PlaceholderLinkIndex)
+        if (result.linkIndex == SmartPathfindingJob.PlaceholderLinkIndex)
             throw new InvalidOperationException("Result is not ready.");
         if (result.linkIndex == -1)
             throw new InvalidOperationException("Path was not found.");
@@ -127,7 +127,7 @@ public sealed class SmartPathTask : IDisposable
 
         ref var result = ref job.results.GetRef(index);
 
-        if (result.linkIndex == SmartFindPathJob.PlaceholderLinkIndex)
+        if (result.linkIndex == SmartPathfindingJob.PlaceholderLinkIndex)
             throw new InvalidOperationException("Result is not ready.");
 
         if (result.linkIndex == -1)
