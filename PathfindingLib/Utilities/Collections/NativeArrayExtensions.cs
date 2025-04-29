@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 using Unity.Collections;
 
@@ -11,7 +11,7 @@ internal static class NativeArrayExtensions
         if (index < 0)
             throw new IndexOutOfRangeException("Index cannot be negative.");
         if (index >= array.Length)
-            throw new IndexOutOfRangeException("Index is too large.");
+            throw new IndexOutOfRangeException($"Index {index} is not within array length of {array.Length}.");
         return ref ((T*)array.m_Buffer)[index];
     }
 
