@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using Unity.Jobs;
@@ -64,10 +64,10 @@ public class SmartPathTask : IDisposable
 
     public Vector3 Origin => jobData!.pathStart;
 
-    public bool IsComplete => jobHandle.IsCompleted;
-
     public bool IsResultReady(int index)
     {
+        if (jobData == null)
+            return false;
         if (index < 0)
             throw new IndexOutOfRangeException("Index cannot be negative.");
         if (index >= jobData!.pathGoalCount)
@@ -76,8 +76,12 @@ public class SmartPathTask : IDisposable
         return job.results[index].linkIndex != SmartFindPathJob.PlaceholderLinkIndex;
     }
 
-    public float GetPathLength(int index)
+    public bool IsComplete => IsResultReady(jobData!.pathGoalCount - 1) && jobHandle.IsCompleted;
+
+    public bool PathSucceeded(int index)
     {
+        if (jobData == null)
+            throw new InvalidOperationException("Job has not been started.");
         if (index < 0)
             throw new IndexOutOfRangeException("Index cannot be negative.");
         if (index >= jobData!.pathGoalCount)
@@ -87,12 +91,35 @@ public class SmartPathTask : IDisposable
 
         if (result.linkIndex == SmartFindPathJob.PlaceholderLinkIndex)
             throw new InvalidOperationException("Result is not ready.");
+        if (result.linkIndex == -1)
+            return false;
+
+        return true;
+    }
+
+    public float GetPathLength(int index)
+    {
+        if (jobData == null)
+            throw new InvalidOperationException("Job has not been started.");
+        if (index < 0)
+            throw new IndexOutOfRangeException("Index cannot be negative.");
+        if (index >= jobData!.pathGoalCount)
+            throw new IndexOutOfRangeException($"Index {index} is larger than destination count {jobData!.pathGoalCount}.");
+
+        ref var result = ref job.results.GetRef(index);
+
+        if (result.linkIndex == SmartFindPathJob.PlaceholderLinkIndex)
+            throw new InvalidOperationException("Result is not ready.");
+        if (result.linkIndex == -1)
+            throw new InvalidOperationException("Path was not found.");
 
         return result.pathLength;
     }
 
     public SmartPathDestination? GetResult(int index)
     {
+        if (jobData == null)
+            throw new InvalidOperationException("Job has not been started.");
         if (index < 0)
             throw new IndexOutOfRangeException("Index cannot be negative.");
         if (index >= jobData!.pathGoalCount)
