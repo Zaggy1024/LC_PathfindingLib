@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 using PathfindingLib.Data;
 
@@ -20,5 +20,19 @@ public static class SmartPathfinding
         if (floor == null)
             throw new ArgumentNullException(nameof(floor));
         SmartPathLinks.UnregisterElevatorFloor(floor);
+    }
+
+    public static void RegisterInternalTeleport(IInternalTeleport teleport)
+    {
+        if (teleport == null)
+            throw new ArgumentNullException(nameof(teleport));
+        SmartPathLinks.RegisterInternalTeleport(teleport);
+    }
+
+    public static void UnregisterInternalTeleport(IInternalTeleport teleport)
+    {
+        if (teleport == null)
+            throw new ArgumentNullException(nameof(teleport));
+        SmartPathLinks.UnregisterInternalTeleport(teleport);
     }
 }

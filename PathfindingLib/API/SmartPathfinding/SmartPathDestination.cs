@@ -7,8 +7,9 @@ namespace PathfindingLib.API.SmartPathfinding;
 public enum SmartDestinationType
 {
     DirectToDestination,
-    Elevator,
+    InternalTeleport,
     EntranceTeleport,
+    Elevator,
 }
 
 public struct SmartPathDestination
@@ -17,6 +18,7 @@ public struct SmartPathDestination
     public Vector3 Position { get; internal set; }
     public EntranceTeleport? EntranceTeleport { get; internal set; }
     public ElevatorFloor? ElevatorFloor { get; internal set; }
+    public IInternalTeleport? InternalTeleport { get; internal set; }
 
     public static SmartPathDestination DirectDestination(Vector3 position)
     {
@@ -24,6 +26,16 @@ public struct SmartPathDestination
         {
             Type = SmartDestinationType.DirectToDestination,
             Position = position,
+        };
+    }
+
+    public static SmartPathDestination InternalTeleportDestination(IInternalTeleport teleport)
+    {
+        return new SmartPathDestination()
+        {
+            Type = SmartDestinationType.InternalTeleport,
+            Position = teleport.Origin.position,
+            InternalTeleport = teleport,
         };
     }
 
@@ -58,16 +70,13 @@ public struct SmartPathDestination
 
     public readonly override string ToString()
     {
-        switch (Type)
+        return Type switch
         {
-            case SmartDestinationType.DirectToDestination:
-                return $"Direct: {Position}";
-            case SmartDestinationType.EntranceTeleport:
-                return $"Entrance Teleport: {EntranceTeleport} @ {Position}";
-            case SmartDestinationType.Elevator:
-                return $"Elevator Floor: {ElevatorFloor!.Elevator} @ {Position}";
-        }
-
-        return "uuh";
+            SmartDestinationType.DirectToDestination => $"Direct: {Position}",
+            SmartDestinationType.EntranceTeleport => $"Entrance Teleport: {EntranceTeleport} @ {Position}",
+            SmartDestinationType.Elevator => $"Elevator Floor: {ElevatorFloor!.Elevator} @ {Position}",
+            SmartDestinationType.InternalTeleport => $"Internal Teleport: {InternalTeleport!.Name} @ {Position}",
+            _ => "Unknown",
+        };
     }
 }

@@ -16,6 +16,7 @@ internal sealed class SmartPathJobDataContainer : IDisposable
 {
     internal enum SmartPathLinkOriginType
     {
+        InternalTeleport,
         EntranceTeleport,
         CallElevator,
         RideElevator,
@@ -26,6 +27,7 @@ internal sealed class SmartPathJobDataContainer : IDisposable
         internal SmartPathLinkOriginType type;
         internal EntranceTeleport entrance;
         internal ElevatorFloor elevatorFloor;
+        internal IInternalTeleport internalTeleport;
 
         internal static SmartPathLinkNode EntranceTeleport(EntranceTeleport teleport)
         {
@@ -50,6 +52,15 @@ internal sealed class SmartPathJobDataContainer : IDisposable
             return new SmartPathLinkNode()
             {
                 type = SmartPathLinkOriginType.RideElevator,
+            };
+        }
+
+        internal static SmartPathLinkNode InternalTeleport(IInternalTeleport teleport)
+        {
+            return new SmartPathLinkNode()
+            {
+                type = SmartPathLinkOriginType.InternalTeleport,
+                internalTeleport = teleport,
             };
         }
     }
@@ -219,6 +230,26 @@ internal sealed class SmartPathJobDataContainer : IDisposable
 
                 if (fillNames)
                     linkNames.Add(elevator.ToString());
+            }
+        }
+
+        if ((allowedLinks & SmartPathfindingLinkFlags.InternalTeleports) != 0)
+        {
+            foreach (var internalTeleport in SmartPathLinks.internalTeleports)
+            {
+                var node = SmartPathLinkNode.InternalTeleport(internalTeleport);
+                linkOriginNodes.Add(node);
+                linkOrigins.Add(internalTeleport.Origin.position);
+
+                linkDestinationNodes.Add(node);
+                linkDestinationSlices.Add(new(linkDestinations.Count, 1));
+                linkDestinations.Add(internalTeleport.Destination.position);
+
+                linkDestinationCostOffsets.Add(linkDestinationCosts.Count);
+                linkDestinationCosts.Add(SmartPathfindingJob.MinEdgeCost);
+
+                if (fillNames)
+                    linkNames.Add(internalTeleport.Name);
             }
         }
     }

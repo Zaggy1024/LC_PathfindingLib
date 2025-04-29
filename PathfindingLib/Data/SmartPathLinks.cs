@@ -16,6 +16,7 @@ internal static class SmartPathLinks
 
     internal static readonly Dictionary<EntranceTeleport, EntranceTeleportLink> entranceTeleports = [];
     internal static readonly Dictionary<IElevator, HashSet<ElevatorFloor>> elevators = [];
+    internal static readonly HashSet<IInternalTeleport> internalTeleports = [];
 
     internal static void RegisterEntranceTeleport(EntranceTeleport teleport, Transform exit)
     {
@@ -55,5 +56,15 @@ internal static class SmartPathLinks
         floors.Remove(floor);
         if (floors.Count == 0)
             elevators.Remove(elevator);
+    }
+
+    internal static void RegisterInternalTeleport(IInternalTeleport teleport)
+    {
+        internalTeleports.Add(teleport);
+    }
+
+    internal static void UnregisterInternalTeleport(IInternalTeleport teleport)
+    {
+        internalTeleports.Remove(teleport);
     }
 }

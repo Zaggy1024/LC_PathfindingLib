@@ -138,6 +138,9 @@ public sealed class SmartPathTask : IDisposable
 
         var destination = jobData.linkOriginNodes[result.linkIndex];
 
+        if (destination.type == SmartPathLinkOriginType.InternalTeleport)
+            return SmartPathDestination.InternalTeleportDestination(destination.internalTeleport);
+
         if (destination.type == SmartPathLinkOriginType.EntranceTeleport)
             return SmartPathDestination.EntranceTeleportDestination(destination.entrance);
 
