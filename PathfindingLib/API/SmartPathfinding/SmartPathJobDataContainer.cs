@@ -56,7 +56,7 @@ internal sealed class SmartPathJobDataContainer : IDisposable
 
     private static readonly ObjectPool<SmartPathJobDataContainer> pool = new(() => new(), actionOnRelease: v => v.Clear(), actionOnDestroy: v => v.Dispose());
 
-    internal static readonly List<string> linkNames = [];
+    private static readonly List<string> linkNames = [];
 
     internal int agentTypeID;
     internal int areaMask;
@@ -243,4 +243,13 @@ internal sealed class SmartPathJobDataContainer : IDisposable
         linkDestinationCostOffsets.Dispose();
         linkDestinationCosts.Dispose();
     }
+
+#if SMART_PATHFINDING_DEBUG
+    public static string GetLinkName(int index)
+    {
+        if (index < 0 || index >= linkNames.Count)
+            return "Unknown";
+        return linkNames[index];
+    }
+#endif
 }

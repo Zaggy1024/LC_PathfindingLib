@@ -257,7 +257,7 @@ internal struct SmartPathfindingJob : IJob
             else if (result.linkIndex == linkCount)
                 PathfindingLibPlugin.Instance.Logger.LogInfo($"Path for goal {goalIndex} was a direct path with length {result.pathLength}.");
             else
-                PathfindingLibPlugin.Instance.Logger.LogInfo($"Path for goal {goalIndex} was an indirect path through link index {result.linkIndex} ({SmartPathJobDataContainer.linkNames[result.linkIndex]}).");
+                PathfindingLibPlugin.Instance.Logger.LogInfo($"Path for goal {goalIndex} was an indirect path through link index {result.linkIndex} ({SmartPathJobDataContainer.GetLinkName(result.linkIndex)}).");
 #endif
 
             results[goalIndex] = result;
@@ -868,10 +868,7 @@ internal struct SmartPathfindingJob : IJob
             }
             else if (currIndex >= 0)
             {
-                var linkName = "Unknown";
-                if (currIndex < SmartPathJobDataContainer.linkNames.Count)
-                    linkName = SmartPathJobDataContainer.linkNames[currIndex];
-                builder.AppendFormat(" {0} {1}\n", linkName, linkOrigins[currIndex]);
+                builder.AppendFormat(" {0} {1}\n", SmartPathJobDataContainer.GetLinkName(currIndex), linkOrigins[currIndex]);
             }
             else
             {
