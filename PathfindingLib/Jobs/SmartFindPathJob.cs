@@ -81,16 +81,15 @@ internal struct SmartFindPathJob : IJob
         // Shhhh, compiler...
         threadIndex = -1;
 
-        linkOrigins = data.linkOrigins;
+        linkOrigins = data.linkOrigins.Get();
+        linkCount = data.linkOrigins.Count;
 
-        linkDestinationSlices = data.linkDestinationSlices;
-        linkDestinations = data.linkDestinations;
+        linkDestinationSlices = data.linkDestinationSlices.Get();
+        linkDestinations = data.linkDestinations.Get();
+        linkDestinationCount = data.linkDestinations.Count;
 
-        linkDestinationCostOffsets = data.linkDestinationCostOffsets;
-        linkDestinationCosts = data.linkDestinationCosts;
-
-        linkCount = data.linkCount;
-        linkDestinationCount = data.linkDestinationCount;
+        linkDestinationCostOffsets = data.linkDestinationCostOffsets.Get();
+        linkDestinationCosts = data.linkDestinationCosts.Get();
 
         vertexCount = linkCount + linkDestinationCount + 2;
     }

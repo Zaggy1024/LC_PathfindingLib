@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using Unity.Collections;
@@ -8,6 +8,7 @@ using UnityEngine.Pool;
 
 using PathfindingLib.Jobs;
 using PathfindingLib.Data;
+using PathfindingLib.Utilities.Collections;
 
 namespace PathfindingLib.API.SmartPathfinding;
 
@@ -62,23 +63,19 @@ internal class SmartPathJobDataContainer : IDisposable
 
     internal Vector3 pathStart;
     internal NativeArray<Vector3> pathGoals;
-    internal int pathGoalCount;
     internal NativeArray<SmartFindPathJob.PathResult> pathResults;
+    internal int pathGoalCount;
 
     internal readonly List<SmartPathLinkNode> linkOriginNodes = [];
     internal readonly List<SmartPathLinkNode> linkDestinationNodes = [];
-    internal NativeArray<Vector3> linkOrigins;
 
-    internal readonly List<Vector3> linkDestinationsManaged = [];
-    internal NativeArray<IndexAndSize> linkDestinationSlices;
-    internal NativeArray<Vector3> linkDestinations;
+    internal NativeArrayBuilder<Vector3> linkOrigins;
 
-    internal readonly List<float> linkDestinationCostsManaged = [];
-    internal NativeArray<int> linkDestinationCostOffsets;
-    internal NativeArray<float> linkDestinationCosts;
+    internal NativeArrayBuilder<IndexAndSize> linkDestinationSlices;
+    internal NativeArrayBuilder<Vector3> linkDestinations;
 
-    internal int linkCount;
-    internal int linkDestinationCount;
+    internal NativeArrayBuilder<int> linkDestinationCostOffsets;
+    internal NativeArrayBuilder<float> linkDestinationCosts;
 
     internal static SmartPathJobDataContainer GetJobData(NavMeshAgent agent, Vector3 origin, Vector3[] destinations, int destinationCount)
     {
@@ -126,54 +123,31 @@ internal class SmartPathJobDataContainer : IDisposable
         }
         pathGoalCount = destinationCount;
 
-        // Count the number of links we'll need to pass to the job.
-        // Elevators require a link for each floor as well as one from the inside of the elevator.
-        var elevatorLinkCount = 0;
-        foreach (var elevatorFloors in SmartPathLinks.elevators.Values)
-            elevatorLinkCount += elevatorFloors.Count + 1;
-        linkCount = SmartPathLinks.entranceTeleports.Count + elevatorLinkCount;
-
-        // Expand all the link data arrays to fit the new data.
-        if (linkCount > linkOrigins.Length)
-        {
-            linkOrigins.Dispose();
-            linkOrigins = new NativeArray<Vector3>(linkCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-
-            linkDestinationSlices.Dispose();
-            linkDestinationSlices = new NativeArray<IndexAndSize>(linkCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-
-            linkDestinationCostOffsets.Dispose();
-            linkDestinationCostOffsets = new NativeArray<int>(linkCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-        }
-
         var fillNames = linkNames.Count == 0;
-        var i = 0;
 
         // Populate the entrance teleports' links.
         foreach (var entranceLink in SmartPathLinks.entranceTeleports.Values)
         {
             var node = SmartPathLinkNode.EntranceTeleport(entranceLink.teleport);
             linkOriginNodes.Add(node);
-            linkOrigins[i] = entranceLink.teleport.entrancePoint.position;
+            linkOrigins.Add(entranceLink.teleport.entrancePoint.position);
 
             linkDestinationNodes.Add(node);
-            linkDestinationSlices[i] = new IndexAndSize(linkDestinationsManaged.Count, 1);
-            linkDestinationsManaged.Add(entranceLink.exit.position);
+            linkDestinationSlices.Add(new IndexAndSize(linkDestinations.Count, 1));
+            linkDestinations.Add(entranceLink.exit.position);
 
-            linkDestinationCostOffsets[i] = linkDestinationCostsManaged.Count;
-            linkDestinationCostsManaged.Add(SmartFindPathJob.MinEdgeCost);
+            linkDestinationCostOffsets.Add(linkDestinationCosts.Count);
+            linkDestinationCosts.Add(SmartFindPathJob.MinEdgeCost);
 
             if (fillNames)
                 linkNames.Add(entranceLink.teleport.ToString());
-
-            i++;
         }
 
         // Populate the elevators' floors' links.
         foreach (var (elevator, floors) in SmartPathLinks.elevators)
         {
             // Add links from each floor to each other floor, using the traversal cost from the elevator interface.
-            var floorsSlice = new IndexAndSize(linkDestinationsManaged.Count, floors.Count);
+            var floorsSlice = new IndexAndSize(linkDestinations.Count, floors.Count);
 
             var currentFloor = elevator.CurrentFloor;
             var targetFloor = elevator.TargetFloor;
@@ -182,13 +156,13 @@ internal class SmartPathJobDataContainer : IDisposable
             {
                 var node = SmartPathLinkNode.CallElevator(floor);
                 linkOriginNodes.Add(node);
-                linkOrigins[i] = floor.CallButtonNavMeshNode.position;
+                linkOrigins.Add(floor.CallButtonNavMeshNode.position);
 
                 linkDestinationNodes.Add(node);
-                linkDestinationSlices[i] = floorsSlice;
-                linkDestinationsManaged.Add(floor.CallButtonNavMeshNode.position);
+                linkDestinationSlices.Add(floorsSlice);
+                linkDestinations.Add(floor.CallButtonNavMeshNode.position);
 
-                linkDestinationCostOffsets[i] = linkDestinationCostsManaged.Count;
+                linkDestinationCostOffsets.Add(linkDestinationCosts.Count);
 
                 foreach (var destinationFloor in floors)
                 {
@@ -206,22 +180,20 @@ internal class SmartPathJobDataContainer : IDisposable
                         cost *= agent.speed;
                     }
 
-                    linkDestinationCostsManaged.Add(cost);
+                    linkDestinationCosts.Add(cost);
                 }
 
                 if (fillNames)
                     linkNames.Add(floor.ToString());
-
-                i++;
             }
 
             // Add a link from the inside of the elevator to all floors.
             linkOriginNodes.Add(SmartPathLinkNode.RideElevator());
-            linkOrigins[i] = elevator.InsideButtonNavMeshNode.position;
+            linkOrigins.Add(elevator.InsideButtonNavMeshNode.position);
 
-            linkDestinationSlices[i] = floorsSlice;
+            linkDestinationSlices.Add(floorsSlice);
 
-            linkDestinationCostOffsets[i] = linkDestinationCostsManaged.Count;
+            linkDestinationCostOffsets.Add(linkDestinationCosts.Count);
 
             foreach (var floor in floors)
             {
@@ -233,39 +205,24 @@ internal class SmartPathJobDataContainer : IDisposable
                 if (floor != currentFloor && (elevator.DoorsAreOpen || targetFloor == floor))
                     cost = elevator.TimeFromFloorToFloor(elevator.ClosestFloor, floor) * agent.speed;
 
-                linkDestinationCostsManaged.Add(cost);
+                linkDestinationCosts.Add(cost);
             }
 
             if (fillNames)
                 linkNames.Add(elevator.ToString());
-
-            i++;
         }
-
-        // Copy the collected link destinations into a native array to pass to the job.
-        if (linkDestinationsManaged.Count > linkDestinations.Length)
-        {
-            linkDestinations.Dispose();
-            linkDestinations = new(linkDestinationsManaged.Count, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-        }
-
-        NativeArray<Vector3>.Copy(NoAllocHelpers.ExtractArrayFromListT(linkDestinationsManaged), linkDestinations, linkDestinationsManaged.Count);
-        linkDestinationCount = linkDestinationsManaged.Count;
-
-        // Copy the collected link costs into a native array to pass to the job.
-        if (linkDestinationCostsManaged.Count > linkDestinationCosts.Length)
-        {
-            linkDestinationCosts.Dispose();
-            linkDestinationCosts = new(linkDestinationCostsManaged.Count, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-        }
-
-        NativeArray<float>.Copy(NoAllocHelpers.ExtractArrayFromListT(linkDestinationCostsManaged), linkDestinationCosts, linkDestinationCostsManaged.Count);
     }
 
     private void Clear()
     {
+        linkOriginNodes.Clear();
         linkDestinationNodes.Clear();
-        linkDestinationsManaged.Clear();
+
+        linkOrigins.Clear();
+        linkDestinationSlices.Clear();
+        linkDestinations.Clear();
+        linkDestinationCostOffsets.Clear();
+        linkDestinationCosts.Clear();
     }
 
     public void Dispose()
@@ -273,9 +230,7 @@ internal class SmartPathJobDataContainer : IDisposable
         linkOrigins.Dispose();
         linkDestinationSlices.Dispose();
         linkDestinations.Dispose();
-
-        linkOrigins = default;
-        linkDestinationSlices = default;
-        linkDestinations = default;
+        linkDestinationCostOffsets.Dispose();
+        linkDestinationCosts.Dispose();
     }
 }

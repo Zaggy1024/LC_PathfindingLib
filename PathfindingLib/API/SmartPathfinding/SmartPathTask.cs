@@ -133,7 +133,7 @@ public class SmartPathTask : IDisposable
         if (result.linkIndex == -1)
             return null;
 
-        if (result.linkIndex >= jobData.linkCount)
+        if (result.linkIndex >= jobData.linkOrigins.Count)
             return SmartPathDestination.DirectDestination(jobData.pathGoals[index]);
 
         var destination = jobData.linkOriginNodes[result.linkIndex];
