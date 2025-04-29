@@ -22,36 +22,36 @@ public class SmartPathTask : IDisposable
     private SmartFindPathJob job;
     private JobHandle jobHandle;
 
-    public void StartPathTask(NavMeshAgent agent, Vector3 origin, Vector3 destination)
+    public void StartPathTask(NavMeshAgent agent, Vector3 origin, Vector3 destination, SmartPathfindingLinkFlags allowedLinks)
     {
         if (jobData != null && !IsComplete)
             return;
 
         SmartPathJobDataContainer.ReleaseJobData(ref jobData);
         singleDestination[0] = destination;
-        jobData = SmartPathJobDataContainer.GetJobData(agent, origin, singleDestination);
+        jobData = SmartPathJobDataContainer.GetJobData(agent, origin, singleDestination, allowedLinks);
 
         StartJob();
     }
 
-    public void StartPathTask(NavMeshAgent agent, Vector3 origin, Vector3[] destinations)
+    public void StartPathTask(NavMeshAgent agent, Vector3 origin, Vector3[] destinations, SmartPathfindingLinkFlags allowedLinks)
     {
         if (jobData != null && !IsComplete)
             return;
 
         SmartPathJobDataContainer.ReleaseJobData(ref jobData);
-        jobData = SmartPathJobDataContainer.GetJobData(agent, origin, destinations);
+        jobData = SmartPathJobDataContainer.GetJobData(agent, origin, destinations, allowedLinks);
 
         StartJob();
     }
 
-    public void StartPathTask(NavMeshAgent agent, Vector3 origin, List<Vector3> destinations)
+    public void StartPathTask(NavMeshAgent agent, Vector3 origin, List<Vector3> destinations, SmartPathfindingLinkFlags allowedLinks)
     {
         if (jobData != null && !IsComplete)
             return;
 
         SmartPathJobDataContainer.ReleaseJobData(ref jobData);
-        jobData = SmartPathJobDataContainer.GetJobData(agent, origin, destinations);
+        jobData = SmartPathJobDataContainer.GetJobData(agent, origin, destinations, allowedLinks);
 
         StartJob();
     }

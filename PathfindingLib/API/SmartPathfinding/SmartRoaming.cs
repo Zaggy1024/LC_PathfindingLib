@@ -13,7 +13,7 @@ public static class SmartRoaming
 
     private static readonly List<Vector3> unsearchedNodePositions = [];
 
-    public static void StartSmartSearch(this EnemyAI enemy, Vector3 startOfSearch, SmartTraversalFunction traversalFunction, AISearchRoutine newSearch = null)
+    public static void StartSmartSearch(this EnemyAI enemy, Vector3 startOfSearch, SmartPathfindingLinkFlags allowedLinks, SmartTraversalFunction traversalFunction, AISearchRoutine newSearch = null)
     {
         newSearch ??= new AISearchRoutine();
 
@@ -30,11 +30,11 @@ public static class SmartRoaming
         if (useVanilla)
             enemy.searchCoroutine = enemy.StartCoroutine(enemy.CurrentSearchCoroutine());
         else
-            enemy.searchCoroutine = enemy.StartCoroutine(enemy.CurrentSmartSearchCoroutine(traversalFunction));
+            enemy.searchCoroutine = enemy.StartCoroutine(enemy.CurrentSmartSearchCoroutine(allowedLinks, traversalFunction));
         enemy.currentSearch.inProgress = true;
     }
 
-    public static IEnumerator CurrentSmartSearchCoroutine(this EnemyAI enemy, SmartTraversalFunction traversalFunction)
+    public static IEnumerator CurrentSmartSearchCoroutine(this EnemyAI enemy, SmartPathfindingLinkFlags allowedLinks, SmartTraversalFunction traversalFunction)
     {
         yield return null;
 
@@ -71,7 +71,7 @@ public static class SmartRoaming
             else
             {
                 enemy.currentSearch.waitingForTargetNode = true;
-                enemy.StartCalculatingNextSmartTargetNode();
+                enemy.StartCalculatingNextSmartTargetNode(allowedLinks);
 
                 yield return new WaitUntil(() => enemy.currentSearch.choseTargetNode);
             }
@@ -87,7 +87,7 @@ public static class SmartRoaming
             {
                 if (currentNodePathTask.IsResultReady(0) && currentNodePathTask.GetResult(0) is SmartPathDestination destination)
                     traversalFunction(enemy, in destination);
-                currentNodePathTask.StartPathTask(enemy.agent, enemy.transform.position, enemy.currentSearch.currentTargetNode.transform.position);
+                currentNodePathTask.StartPathTask(enemy.agent, enemy.transform.position, enemy.currentSearch.currentTargetNode.transform.position, allowedLinks);
             }
             GoToCurrentDestination();
 
@@ -108,7 +108,7 @@ public static class SmartRoaming
             }
 
             // Calculate the next node ahead of time.
-            enemy.StartCalculatingNextSmartTargetNode();
+            enemy.StartCalculatingNextSmartTargetNode(allowedLinks);
 
             // Wait for the current target to be reached.
             currentTargetPos = enemy.currentSearch.currentTargetNode.transform.position;
@@ -147,14 +147,14 @@ public static class SmartRoaming
             enemy.StopSearch(enemy.currentSearch);
     }
 
-    public static void StartCalculatingNextSmartTargetNode(this EnemyAI enemy)
+    public static void StartCalculatingNextSmartTargetNode(this EnemyAI enemy, SmartPathfindingLinkFlags allowedLinks)
     {
         var search = enemy.currentSearch;
 
         if (enemy.chooseTargetNodeCoroutine == null)
         {
             search.choseTargetNode = false;
-            enemy.chooseTargetNodeCoroutine = enemy.StartCoroutine(enemy.ChooseNextNodeInSmartSearchRoutine());
+            enemy.chooseTargetNodeCoroutine = enemy.StartCoroutine(enemy.ChooseNextNodeInSmartSearchRoutine(allowedLinks));
             return;
         }
 
@@ -163,11 +163,11 @@ public static class SmartRoaming
             search.choseTargetNode = false;
             search.calculatingNodeInSearch = true;
             enemy.StopCoroutine(enemy.chooseTargetNodeCoroutine);
-            enemy.chooseTargetNodeCoroutine = enemy.StartCoroutine(enemy.ChooseNextNodeInSmartSearchRoutine());
+            enemy.chooseTargetNodeCoroutine = enemy.StartCoroutine(enemy.ChooseNextNodeInSmartSearchRoutine(allowedLinks));
         }
     }
 
-    public static IEnumerator ChooseNextNodeInSmartSearchRoutine(this EnemyAI enemy)
+    public static IEnumerator ChooseNextNodeInSmartSearchRoutine(this EnemyAI enemy, SmartPathfindingLinkFlags allowedLinks)
     {
         yield return null;
 
@@ -181,11 +181,11 @@ public static class SmartRoaming
 
         // Start a task to calculate paths from the enemy to each node.
         var pathsFromEnemyTask = new SmartPathTask();
-        pathsFromEnemyTask.StartPathTask(enemy.agent, enemy.transform.position, unsearchedNodePositions);
+        pathsFromEnemyTask.StartPathTask(enemy.agent, enemy.transform.position, unsearchedNodePositions, allowedLinks);
 
         // Start a task to calculate paths from the search origin to each node if necessary.
         var pathsFromSearchStart = !enemy.currentSearch.startedSearchAtSelf ? new SmartPathTask() : null;
-        pathsFromSearchStart?.StartPathTask(enemy.agent, enemy.currentSearch.currentSearchStartPosition, unsearchedNodePositions);
+        pathsFromSearchStart?.StartPathTask(enemy.agent, enemy.currentSearch.currentSearchStartPosition, unsearchedNodePositions, allowedLinks);
 
         var searchWidthSqr = enemy.currentSearch.searchWidth * enemy.currentSearch.searchWidth;
 
