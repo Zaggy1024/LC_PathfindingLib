@@ -12,7 +12,7 @@ using PathfindingLib.Utilities.Collections;
 
 namespace PathfindingLib.API.SmartPathfinding;
 
-internal class SmartPathJobDataContainer : IDisposable
+internal sealed class SmartPathJobDataContainer : IDisposable
 {
     internal enum SmartPathLinkOriginType
     {

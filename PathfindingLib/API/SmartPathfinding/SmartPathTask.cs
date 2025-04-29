@@ -14,7 +14,7 @@ namespace PathfindingLib.API.SmartPathfinding;
 
 #nullable enable
 
-public class SmartPathTask : IDisposable
+public sealed class SmartPathTask : IDisposable
 {
     private static readonly Vector3[] singleDestination = [Vector3.zero];
 

@@ -1,10 +1,10 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 namespace PathfindingLib.API.SmartPathfinding;
 
 #nullable enable
 
-public class ElevatorFloor(IElevator elevator, Transform buttonPosition)
+public sealed class ElevatorFloor(IElevator elevator, Transform buttonPosition)
 {
     public IElevator Elevator { get; } = elevator;
     public Transform CallButtonNavMeshNode { get; } = buttonPosition;
