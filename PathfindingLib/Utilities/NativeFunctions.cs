@@ -1,6 +1,6 @@
-﻿namespace PathfindingLib.Patches.Native;
+﻿namespace PathfindingLib.Utilities;
 
-internal class NativeHooksCommon
+internal static class NativeFunctions
 {
     internal readonly static bool IsDebugBuild = UnityEngine.Debug.isDebugBuild;
 }

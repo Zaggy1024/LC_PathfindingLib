@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using MonoMod.RuntimeDetour;
 
 using PathfindingLib.API;
+using PathfindingLib.Utilities;
 
 namespace PathfindingLib.Patches.Native;
 
@@ -22,7 +23,7 @@ internal static class PatchApplyCarveResults
         // UnityPlayer dll, you may see the address including an offset like 0x180000000. If so, subtract
         // the base address (the address of the header) from the address of the function.
         var functionOffset = 0xA64E80UL;
-        if (NativeHooksCommon.IsDebugBuild)
+        if (NativeFunctions.IsDebugBuild)
             functionOffset = 0x12C1890UL;
         var functionAddress = (IntPtr)((ulong)baseAddress + functionOffset);
 
@@ -51,7 +52,7 @@ internal static class PatchApplyCarveResults
         // the start and end of the valid data, then check if the end is greater than the start.
         var jobData = 0UL;
         var jobDataEnd = 0UL;
-        if (NativeHooksCommon.IsDebugBuild)
+        if (NativeFunctions.IsDebugBuild)
         {
             jobData = *(ulong*)((ulong)thisNavMeshCarving + 0x38);
             jobDataEnd = *(ulong*)((ulong)thisNavMeshCarving + 0x40);

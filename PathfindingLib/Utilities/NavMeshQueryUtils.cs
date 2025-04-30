@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 
 using Unity.Collections;
@@ -6,8 +6,6 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Experimental.AI;
-
-using PathfindingLib.Patches.Native;
 
 namespace PathfindingLib.Utilities;
 
@@ -151,7 +149,7 @@ public static class NavMeshQueryUtils
     internal static void SetUpNativeMethodPointers(IntPtr baseAddress)
     {
         var functionOffset = 0xA59270UL;
-        if (NativeHooksCommon.IsDebugBuild)
+        if (NativeFunctions.IsDebugBuild)
             functionOffset = 0x12B0040UL;
         var functionAddress = (IntPtr)((ulong)baseAddress + functionOffset);
 
