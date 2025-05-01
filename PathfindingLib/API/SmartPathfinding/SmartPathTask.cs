@@ -161,4 +161,9 @@ public sealed class SmartPathTask : IDisposable
         SmartPathJobDataContainer.ReleaseJobData(ref jobData);
         job.FreeAllResources();
     }
+
+    ~SmartPathTask()
+    {
+        Dispose();
+    }
 }
