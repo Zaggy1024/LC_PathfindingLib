@@ -1,5 +1,7 @@
 ﻿using System;
 
+using UnityEngine.AI;
+
 using PathfindingLib.Data;
 
 namespace PathfindingLib.API.SmartPathfinding;
@@ -10,6 +12,16 @@ public static class SmartPathfinding
 {
     public const int NonSmartAgentOffMeshLinkAreaIndex = 25;
     public const int NonSmartAgentOffMeshLinkAreaMask = 1 << NonSmartAgentOffMeshLinkAreaIndex;
+
+    public static void RegisterSmartAgent(NavMeshAgent agent)
+    {
+        agent.areaMask &= ~NonSmartAgentOffMeshLinkAreaMask;
+    }
+
+    public static void UnregisterSmartAgent(NavMeshAgent agent)
+    {
+        agent.areaMask |= NonSmartAgentOffMeshLinkAreaMask;
+    }
 
     public static void RegisterElevatorFloor(ElevatorFloor floor)
     {
