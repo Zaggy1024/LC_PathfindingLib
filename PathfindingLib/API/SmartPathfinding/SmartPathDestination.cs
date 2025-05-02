@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System;
+using UnityEngine;
 
 namespace PathfindingLib.API.SmartPathfinding;
 
@@ -14,11 +15,38 @@ public enum SmartDestinationType
 
 public struct SmartPathDestination
 {
-    public SmartDestinationType Type { get; internal set; }
-    public Vector3 Position { get; internal set; }
-    public EntranceTeleport? EntranceTeleport { get; internal set; }
-    public ElevatorFloor? ElevatorFloor { get; internal set; }
-    public IInternalTeleport? InternalTeleport { get; internal set; }
+    public SmartDestinationType Type { get; private set; }
+    public Vector3 Position { get; private set; }
+    public EntranceTeleport EntranceTeleport
+    {
+        readonly get
+        {
+            if (Type != SmartDestinationType.EntranceTeleport)
+                throw new InvalidOperationException("Type is not EntranceTeleport.");
+            return field;
+        }
+        private set;
+    }
+    public ElevatorFloor ElevatorFloor
+    {
+        readonly get
+        {
+            if (Type != SmartDestinationType.Elevator)
+                throw new InvalidOperationException("Type is not Elevator.");
+            return field;
+        }
+        private set;
+    }
+    public IInternalTeleport InternalTeleport
+    {
+        readonly get
+        {
+            if (Type != SmartDestinationType.InternalTeleport)
+                throw new InvalidOperationException("Type is not InternalTeleport.");
+            return field;
+        }
+        private set;
+    }
 
     public static SmartPathDestination DirectDestination(Vector3 position)
     {
