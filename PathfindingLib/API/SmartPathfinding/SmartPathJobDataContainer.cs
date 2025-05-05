@@ -115,6 +115,9 @@ internal sealed class SmartPathJobDataContainer : IDisposable
 
     internal void FillJobData(NavMeshAgent agent, Vector3 origin, Vector3[] destinations, int destinationCount, SmartPathfindingLinkFlags allowedLinks)
     {
+        if (destinationCount <= 0)
+            throw new ArgumentOutOfRangeException($"{nameof(destinationCount)} must be larger than zero.");
+
         agentTypeID = agent.agentTypeID;
         areaMask = agent.areaMask;
 
