@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using Unity.Collections;
@@ -28,11 +28,24 @@ internal struct SmartPathfindingJob : IJob
 {
     internal const int PlaceholderLinkIndex = int.MinValue;
 
-    internal struct PathResult()
+    internal struct PathResult
     {
-        internal int linkIndex = PlaceholderLinkIndex;
-        internal int linkDestinationIndex = PlaceholderLinkIndex;
-        internal float pathLength = float.PositiveInfinity;
+        internal static readonly PathResult InProgress = new()
+        {
+            linkIndex = PlaceholderLinkIndex,
+            linkDestinationIndex = PlaceholderLinkIndex,
+            pathLength = float.PositiveInfinity,
+        };
+        internal static readonly PathResult Failed = new()
+        {
+            linkIndex = -1,
+            linkDestinationIndex = -1,
+            pathLength = float.PositiveInfinity,
+        };
+
+        internal int linkIndex;
+        internal int linkDestinationIndex;
+        internal float pathLength;
     }
 
     internal const float MinEdgeCost = 0.0001f;
@@ -185,9 +198,7 @@ internal struct SmartPathfindingJob : IJob
 
     private readonly void FailPath(int index)
     {
-        ref var result = ref results.GetRef(index);
-        result.linkIndex = -1;
-        result.linkDestinationIndex = -1;
+        results.GetRef(index) = PathResult.Failed;
     }
 
     public void Execute()
@@ -504,7 +515,7 @@ internal struct SmartPathfindingJob : IJob
 
         // No path was found.
         if (float.IsInfinity(startVertex.rhs))
-            return new();
+            return PathResult.Failed;
 
         var result = new PathResult();
         result.linkIndex = memory.GetBestSuccessor(StartVertexIndex, out result.pathLength);
@@ -524,7 +535,7 @@ internal struct SmartPathfindingJob : IJob
             return result;
 
         PathfindingLibPlugin.Instance.Logger.LogFatal($"Smart pathfinding job found a best path that was a link destination. This should not be possible. First index = {result.linkIndex}, second index = {result.linkDestinationIndex}, link count = {linkCount}");
-        return new();
+        return PathResult.Failed;
     }
 
     private struct PathfinderMemory : IDisposable

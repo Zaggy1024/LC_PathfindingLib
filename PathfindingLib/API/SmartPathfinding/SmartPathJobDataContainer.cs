@@ -133,7 +133,7 @@ internal sealed class SmartPathJobDataContainer : IDisposable
         for (var goalIndex = 0; goalIndex < destinationCount; goalIndex++)
         {
             pathGoals[goalIndex] = destinations[goalIndex];
-            pathResults[goalIndex] = new();
+            pathResults[goalIndex] = SmartPathfindingJob.PathResult.InProgress;
         }
         pathGoalCount = destinationCount;
 
