@@ -88,6 +88,7 @@ internal sealed class SmartPathJobDataContainer : IDisposable
 
 #if SMART_PATHFINDING_DEBUG
     internal NativeArrayBuilder<FixedString128Bytes> linkNames;
+    internal NativeArrayBuilder<FixedString128Bytes> linkDestinationNames;
 #endif
 
     internal static SmartPathJobDataContainer GetJobData(NavMeshAgent agent, Vector3 origin, Vector3[] destinations, int destinationCount, SmartPathfindingLinkFlags allowedLinks)
@@ -165,7 +166,9 @@ internal sealed class SmartPathJobDataContainer : IDisposable
 
 #if SMART_PATHFINDING_DEBUG
             linkNames.Add(entranceLink.teleport.ToString());
+            linkDestinationNames.Add(entranceLink.teleport.ToString());
 #endif
+            
         }
 
         // Populate the elevators' floors' links.
@@ -211,7 +214,8 @@ internal sealed class SmartPathJobDataContainer : IDisposable
                     }
 
 #if SMART_PATHFINDING_DEBUG
-                    linkNames.Add(floor.ToString());
+                    linkNames.Add("🛗" + floor.ToString());
+                    linkDestinationNames.Add(floor.ToString());
 #endif
                 }
 
@@ -237,7 +241,7 @@ internal sealed class SmartPathJobDataContainer : IDisposable
                 }
 
 #if SMART_PATHFINDING_DEBUG
-                linkNames.Add(elevator.ToString());
+                linkNames.Add("🛗" + elevator.ToString());
 #endif
             }
         }
@@ -259,6 +263,7 @@ internal sealed class SmartPathJobDataContainer : IDisposable
 
 #if SMART_PATHFINDING_DEBUG
                 linkNames.Add(internalTeleport.Name);
+                linkDestinationNames.Add(internalTeleport.Name);
 #endif
             }
         }

@@ -71,6 +71,7 @@ internal struct SmartPathfindingJob : IJob
 
 #if SMART_PATHFINDING_DEBUG
     [ReadOnly, NativeDisableParallelForRestriction] private NativeArray<FixedString128Bytes> linkNames;
+    [ReadOnly, NativeDisableParallelForRestriction] private NativeArray<FixedString128Bytes> linkDestinationNames;
 #endif
 
     [ReadOnly] private int linkCount;
@@ -110,6 +111,7 @@ internal struct SmartPathfindingJob : IJob
 
 #if SMART_PATHFINDING_DEBUG
         linkNames = data.linkNames.Get();
+        linkDestinationNames = data.linkDestinationNames.Get();
 #endif
 
         vertexCount = linkCount + linkDestinationCount + 2;
@@ -206,6 +208,13 @@ internal struct SmartPathfindingJob : IJob
         if (index < 0 || index >= linkNames.Length)
             return "Unknown";
         return linkNames[index];
+    }
+    
+    private readonly FixedString128Bytes GetLinkDestinationName(int index)
+    {
+        if (index < 0 || index >= linkDestinationNames.Length)
+            return "Unknown";
+        return linkDestinationNames[index];
     }
 #endif
 
@@ -883,7 +892,8 @@ internal struct SmartPathfindingJob : IJob
             }
             else if (currIndex >= LinkDestinationsOffset)
             {
-                builder.AppendFormat(" linkDestination {0}\n", linkDestinations[currIndex - LinkDestinationsOffset]);
+                var destinationIndex = currIndex - LinkDestinationsOffset;
+                builder.AppendFormat(" └─ {0} {1}\n", GetLinkDestinationName(destinationIndex), linkDestinations[destinationIndex]);
             }
             else if (currIndex >= 0)
             {
@@ -943,7 +953,7 @@ internal struct SmartPathfindingJob : IJob
             else if (i >= 0)
                 vertexType = "LinkOrigin";
 
-            DebugVertices[goal][i] = new DebugVertex(memory, i, vertexType);
+            DebugVertices[goal][i] = new DebugVertex(memory, goal, i, vertexType);
         }
     }
 
@@ -951,8 +961,8 @@ internal struct SmartPathfindingJob : IJob
     {
         internal readonly bool valid;
 
-        internal readonly List<PathEdge> predecessors;
-        internal readonly List<PathEdge> successors;
+        internal readonly List<DebugEdge> predecessors;
+        internal readonly List<DebugEdge> successors;
 
         internal readonly int index;
         internal readonly string type;
@@ -962,11 +972,11 @@ internal struct SmartPathfindingJob : IJob
         internal readonly float rhs;
 
         internal readonly PathVertex.VertexKey key;
-        internal readonly PathEdge NextEdge;
+        internal readonly DebugEdge NextEdge;
 
-        internal DebugVertex(PathfinderMemory memory, int index, string type)
+        internal DebugVertex(PathfinderMemory memory, int goalIndex, int vertexIndex, string type)
         {
-            ref var src = ref memory.GetVertex(index);
+            ref var src = ref memory.GetVertex(vertexIndex);
 
             this.index = src.index;
 
@@ -977,13 +987,13 @@ internal struct SmartPathfindingJob : IJob
 
             for (var i = 0; i < memory.vertexCount; i++)
             {
-                var predecessorEdge = memory.GetEdge(i, index);
+                var predecessorEdge = memory.GetEdge(i, vertexIndex);
                 if (predecessorEdge.isValid)
-                    predecessors.Add(predecessorEdge);
+                    predecessors.Add(new DebugEdge(goalIndex, i, predecessorEdge.cost));
 
-                var successorEdge = memory.GetEdge(index, i);
+                var successorEdge = memory.GetEdge(vertexIndex, i);
                 if (successorEdge.isValid)
-                    successors.Add(successorEdge);
+                    successors.Add(new DebugEdge(goalIndex, i, successorEdge.cost));
             }
 
             heuristic = src.heuristic;
@@ -992,13 +1002,9 @@ internal struct SmartPathfindingJob : IJob
 
             key = src.CalculateKey();
 
-            var bestIndex = memory.GetBestSuccessor(index, out var cost);
+            var bestIndex = memory.GetBestSuccessor(vertexIndex, out var cost);
 
-            NextEdge = new PathEdge(index, bestIndex)
-            {
-                isValid = true,
-                cost = cost,
-            };
+            NextEdge = new DebugEdge(goalIndex, bestIndex, cost);
             valid = true;
         }
 
@@ -1007,6 +1013,22 @@ internal struct SmartPathfindingJob : IJob
             if (!valid)
                 return "Not Initialized!";
             return $"{type} {nameof(index)}: {index}, {nameof(g)}: {g:0.###}, {nameof(rhs)}: {rhs:0.###}";
+        }
+    }
+
+    private readonly struct DebugEdge(int goalIndex, int vertexIndex, float cost)
+    {
+        private readonly int _goalIndex = goalIndex;
+
+        public readonly int Index = vertexIndex;
+
+        public ref DebugVertex Next => ref DebugVertices[_goalIndex][Index];
+
+        public float Cost => cost;
+
+        public override string ToString()
+        {
+            return $"{nameof(Index)}: {Index}, {nameof(Cost)}: {Cost}";
         }
     }
 #endif
