@@ -34,6 +34,16 @@ public static class SmartRoaming
         enemy.currentSearch.inProgress = true;
     }
 
+    private static void SendSmartAIToSmartDestination(EnemyAI enemy, in SmartPathDestination destination)
+    {
+        ((ISmartAI)enemy).GoToSmartPathDestination(in destination);
+    }
+
+    public static void StartSmartSearch<T>(this T enemy, Vector3 startOfSearch, SmartPathfindingLinkFlags allowedLinks, AISearchRoutine newSearch = null) where T : EnemyAI, ISmartAI
+    {
+        enemy.StartSmartSearch(startOfSearch, allowedLinks, SendSmartAIToSmartDestination, newSearch);
+    }
+
     public static IEnumerator CurrentSmartSearchCoroutine(this EnemyAI enemy, SmartPathfindingLinkFlags allowedLinks, SmartTraversalFunction traversalFunction)
     {
         yield return null;
