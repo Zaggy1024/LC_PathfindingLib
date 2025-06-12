@@ -13,7 +13,7 @@ internal static class NativeFunctions
     }
 
     // Delegate for Component::GetName()
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
     private unsafe delegate char* GetNameDelegate(IntPtr thisComponent);
 
     private static GetNameDelegate getNameMethod;

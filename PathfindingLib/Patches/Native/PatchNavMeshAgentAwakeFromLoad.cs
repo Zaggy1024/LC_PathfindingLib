@@ -16,7 +16,7 @@ internal static class PatchNavMeshAgent
     }
 
     // Detour for NavMeshAgent::AwakeFromLoad()
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
     private delegate void AwakeFromLoadDelegate(IntPtr thisNavMeshAgent, int awakeFromLoadMode);
 
     private static NativeDetour awakeFromLoadDetour;

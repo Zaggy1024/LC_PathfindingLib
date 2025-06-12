@@ -134,7 +134,7 @@ public static class NavMeshQueryUtils
         return result;
     }
 
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
     private unsafe delegate PathQueryStatus FindStraightPathDelegate(NavMeshQuery self,
         in Vector3 startPos, in Vector3 endPos,
         PolygonId* path, int pathSize,
