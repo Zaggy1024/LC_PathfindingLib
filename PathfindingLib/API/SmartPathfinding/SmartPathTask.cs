@@ -140,6 +140,9 @@ public sealed class SmartPathTask : IDisposable
         if (result.linkIndex >= jobData.linkOrigins.Count)
             return SmartPathDestination.DirectDestination(jobData.pathGoals[index]);
 
+        if (result.linkIndex < 0 || result.linkIndex > jobData.linkOriginNodes.Count)
+            PathfindingLibPlugin.Instance.Logger.LogError($"Attempting to get link origin {result.linkIndex} with {jobData.linkOriginNodes.Count} links available.");
+
         var destination = jobData.linkOriginNodes[result.linkIndex];
 
         if (destination.type == SmartPathLinkOriginType.InternalTeleport)
