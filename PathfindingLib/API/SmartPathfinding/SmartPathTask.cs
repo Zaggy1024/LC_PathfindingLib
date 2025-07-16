@@ -38,6 +38,8 @@ public sealed class SmartPathTask : IDisposable
     {
         if (jobData != null && !IsComplete)
             return;
+        if (destinations.Length == 0)
+            return;
 
         SmartPathJobDataContainer.ReleaseJobData(ref jobData);
         jobData = SmartPathJobDataContainer.GetJobData(agent, origin, destinations, allowedLinks);
@@ -48,6 +50,8 @@ public sealed class SmartPathTask : IDisposable
     public void StartPathTask(NavMeshAgent agent, Vector3 origin, List<Vector3> destinations, SmartPathfindingLinkFlags allowedLinks)
     {
         if (jobData != null && !IsComplete)
+            return;
+        if (destinations.Count == 0)
             return;
 
         SmartPathJobDataContainer.ReleaseJobData(ref jobData);
