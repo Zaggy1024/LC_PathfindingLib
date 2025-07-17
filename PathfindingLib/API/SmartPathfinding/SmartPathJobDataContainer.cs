@@ -127,6 +127,7 @@ internal sealed class SmartPathJobDataContainer : IDisposable
         if (destinationCount > pathGoals.Length)
         {
             pathGoals.Dispose();
+            pathResults.Dispose();
             pathGoals = new NativeArray<Vector3>(destinationCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
             pathResults = new NativeArray<SmartPathfindingJob.PathResult>(destinationCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
         }
