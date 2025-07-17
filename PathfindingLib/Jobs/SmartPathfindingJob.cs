@@ -107,15 +107,6 @@ internal struct SmartPathfindingJob : IJob
         vertexCount = linkCount + linkDestinationCount + 2;
     }
 
-    private void DisposeResizeableArrays()
-    {
-        if (!goals.IsCreated)
-            return;
-
-        goals.Dispose();
-        results.Dispose();
-    }
-
 #if BENCHMARKING
     private static readonly ProfilerMarker CalculateSinglePathMarker = new("CalculateSinglePath");
 #endif
@@ -1002,9 +993,4 @@ internal struct SmartPathfindingJob : IJob
         }
     }
 #endif
-
-    internal void FreeAllResources()
-    {
-        DisposeResizeableArrays();
-    }
 }
