@@ -260,6 +260,9 @@ internal sealed class SmartPathJobDataContainer : IDisposable
 
     private void Clear()
     {
+        pathGoals.SetAllElements(default);
+        pathResults.SetAllElements(default);
+
         linkOriginNodes.Clear();
         linkDestinationNodes.Clear();
 
@@ -272,6 +275,9 @@ internal sealed class SmartPathJobDataContainer : IDisposable
 
     public void Dispose()
     {
+        pathGoals.Dispose();
+        pathResults.Dispose();
+
         linkOrigins.Dispose();
         linkDestinationSlices.Dispose();
         linkDestinations.Dispose();
