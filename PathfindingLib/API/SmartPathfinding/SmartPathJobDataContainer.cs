@@ -67,8 +67,6 @@ internal sealed class SmartPathJobDataContainer : IDisposable
 
     private static readonly ObjectPool<SmartPathJobDataContainer> pool = new(() => new(), actionOnRelease: v => v.Clear(), actionOnDestroy: v => v.Dispose());
 
-    private static readonly List<string> linkNames = [];
-
     internal int agentTypeID;
     internal int areaMask;
 
@@ -87,6 +85,10 @@ internal sealed class SmartPathJobDataContainer : IDisposable
 
     internal NativeArrayBuilder<int> linkDestinationCostOffsets;
     internal NativeArrayBuilder<float> linkDestinationCosts;
+
+#if SMART_PATHFINDING_DEBUG
+    internal NativeArrayBuilder<FixedString128Bytes> linkNames;
+#endif
 
     internal static SmartPathJobDataContainer GetJobData(NavMeshAgent agent, Vector3 origin, Vector3[] destinations, int destinationCount, SmartPathfindingLinkFlags allowedLinks)
     {
@@ -138,8 +140,6 @@ internal sealed class SmartPathJobDataContainer : IDisposable
         }
         pathGoalCount = destinationCount;
 
-        var fillNames = linkNames.Count == 0;
-
         // Populate the entrance teleports' links.
         foreach (var entranceLink in SmartPathLinks.entranceTeleports.Values)
         {
@@ -161,8 +161,9 @@ internal sealed class SmartPathJobDataContainer : IDisposable
             linkDestinationCostOffsets.Add(linkDestinationCosts.Count);
             linkDestinationCosts.Add(SmartPathfindingJob.MinEdgeCost);
 
-            if (fillNames)
-                linkNames.Add(entranceLink.teleport.ToString());
+#if SMART_PATHFINDING_DEBUG
+            linkNames.Add(entranceLink.teleport.ToString());
+#endif
         }
 
         // Populate the elevators' floors' links.
@@ -207,8 +208,9 @@ internal sealed class SmartPathJobDataContainer : IDisposable
                         linkDestinationCosts.Add(cost);
                     }
 
-                    if (fillNames)
-                        linkNames.Add(floor.ToString());
+#if SMART_PATHFINDING_DEBUG
+                    linkNames.Add(floor.ToString());
+#endif
                 }
 
                 // Add a link from the inside of the elevator to all floors.
@@ -232,8 +234,9 @@ internal sealed class SmartPathJobDataContainer : IDisposable
                     linkDestinationCosts.Add(cost);
                 }
 
-                if (fillNames)
-                    linkNames.Add(elevator.ToString());
+#if SMART_PATHFINDING_DEBUG
+                linkNames.Add(elevator.ToString());
+#endif
             }
         }
 
@@ -252,8 +255,9 @@ internal sealed class SmartPathJobDataContainer : IDisposable
                 linkDestinationCostOffsets.Add(linkDestinationCosts.Count);
                 linkDestinationCosts.Add(SmartPathfindingJob.MinEdgeCost);
 
-                if (fillNames)
-                    linkNames.Add(internalTeleport.Name);
+#if SMART_PATHFINDING_DEBUG
+                linkNames.Add(internalTeleport.Name);
+#endif
             }
         }
     }
@@ -271,6 +275,10 @@ internal sealed class SmartPathJobDataContainer : IDisposable
         linkDestinations.Clear();
         linkDestinationCostOffsets.Clear();
         linkDestinationCosts.Clear();
+
+#if SMART_PATHFINDING_DEBUG
+        linkNames.Clear();
+#endif
     }
 
     public void Dispose()
@@ -283,14 +291,9 @@ internal sealed class SmartPathJobDataContainer : IDisposable
         linkDestinations.Dispose();
         linkDestinationCostOffsets.Dispose();
         linkDestinationCosts.Dispose();
-    }
 
 #if SMART_PATHFINDING_DEBUG
-    public static string GetLinkName(int index)
-    {
-        if (index < 0 || index >= linkNames.Count)
-            return "Unknown";
-        return linkNames[index];
-    }
+        linkNames.Dispose();
 #endif
+    }
 }

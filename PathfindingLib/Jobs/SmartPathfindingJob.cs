@@ -69,6 +69,10 @@ internal struct SmartPathfindingJob : IJob
     [ReadOnly, NativeDisableParallelForRestriction] private NativeArray<int> linkDestinationCostOffsets;
     [ReadOnly, NativeDisableParallelForRestriction] private NativeArray<float> linkDestinationCosts;
 
+#if SMART_PATHFINDING_DEBUG
+    [ReadOnly, NativeDisableParallelForRestriction] private NativeArray<FixedString128Bytes> linkNames;
+#endif
+
     [ReadOnly] private int linkCount;
     [ReadOnly] private int linkDestinationCount;
 
@@ -103,6 +107,10 @@ internal struct SmartPathfindingJob : IJob
 
         linkDestinationCostOffsets = data.linkDestinationCostOffsets.Get();
         linkDestinationCosts = data.linkDestinationCosts.Get();
+
+#if SMART_PATHFINDING_DEBUG
+        linkNames = data.linkNames.Get();
+#endif
 
         vertexCount = linkCount + linkDestinationCount + 2;
     }
@@ -192,6 +200,15 @@ internal struct SmartPathfindingJob : IJob
         results.GetRef(index) = PathResult.Failed;
     }
 
+#if SMART_PATHFINDING_DEBUG
+    private readonly FixedString128Bytes GetLinkName(int index)
+    {
+        if (index < 0 || index >= linkNames.Length)
+            return "Unknown";
+        return linkNames[index];
+    }
+#endif
+
     public void Execute()
     {
 #if SMART_PATHFINDING_DEBUG
@@ -259,7 +276,7 @@ internal struct SmartPathfindingJob : IJob
             else if (result.linkIndex == linkCount)
                 PathfindingLibPlugin.Instance.Logger.LogInfo($"Path for goal {goalIndex} was a direct path with length {result.pathLength}.");
             else
-                PathfindingLibPlugin.Instance.Logger.LogInfo($"Path for goal {goalIndex} was an indirect path through link index {result.linkIndex} ({SmartPathJobDataContainer.GetLinkName(result.linkIndex)}).");
+                PathfindingLibPlugin.Instance.Logger.LogInfo($"Path for goal {goalIndex} was an indirect path through link index {result.linkIndex} ({GetLinkName(result.linkIndex)}).");
 #endif
 
             results[goalIndex] = result;
@@ -870,7 +887,7 @@ internal struct SmartPathfindingJob : IJob
             }
             else if (currIndex >= 0)
             {
-                builder.AppendFormat(" {0} {1}\n", SmartPathJobDataContainer.GetLinkName(currIndex), linkOrigins[currIndex]);
+                builder.AppendFormat(" {0} {1}\n", GetLinkName(currIndex), linkOrigins[currIndex]);
             }
             else
             {
