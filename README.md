@@ -12,6 +12,8 @@ Feel free to submit suggestions for clarifications or improvements as issues or 
 
 ## Usage
 
+### Note: This API is outdated. Documentation for the SmartPathfinding namespace will be added to the [GitHub wiki](https://github.com/Zaggy1024/LC_PathfindingLib/wiki) later.
+
 In order to run pathfinding off the main thread, the library provides a pre-built job called `FindPathJob` that can be used to calculate a path that the provided `NavMeshAgent` can traverse from a starting position to an ending position.
 
 To do so, you will need to request a job from the pool of jobs:

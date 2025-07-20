@@ -1,3 +1,11 @@
+## Version 1.0.0
+- New APIs:
+    - `SmartPathfinding`: A static class with methods to register smart agents, elevators, and teleporters for the smart pathfinding system.
+    - `IElevator`: An interface that can be implemented to allow enemies to navigate through them if they use `SmartPathTask`.
+    - `SmartPathTask`: A class to calculate paths to multiple destinations either directly or through entrance teleports and elevators.
+    - `SmartRoaming`: A static class that reimplements the vanilla AI search routine using `SmartPathTask` to allow enemies that choose to use it to roam through elevators.
+- Wiki pages will be added to the GitHub for usage instructions later!
+
 ## Version 0.1.1
 - Fixed an issue that would cause partial paths passed to `NavMeshQueryUtils.FindStraightPath` to result in a final corner at the destination.
 - Changed the new overloads of `NavMeshQueryUtils.FindStraightPath` to use `Vector3` instead of `float3`, as the Unity runtime assumes the memory layout matches `Vector3` internally.
