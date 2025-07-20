@@ -199,8 +199,6 @@ public static class SmartRoaming
         var pathsFromSearchStart = !enemy.currentSearch.startedSearchAtSelf ? new SmartPathTask() : null;
         pathsFromSearchStart?.StartPathTask(enemy.agent, enemy.currentSearch.currentSearchStartPosition, unsearchedNodePositions, allowedLinks);
 
-        var searchWidthSqr = enemy.currentSearch.searchWidth * enemy.currentSearch.searchWidth;
-
         for (var i = enemy.currentSearch.unsearchedNodes.Count - 1; i >= 0; i--)
         {
             if (!enemy.IsOwner)
@@ -212,7 +210,6 @@ public static class SmartRoaming
             if (i % 5 == 0)
             {
                 yield return null;
-                searchWidthSqr = enemy.currentSearch.searchWidth * enemy.currentSearch.searchWidth;
             }
 
             while (!pathsFromEnemyTask.IsResultReady(i))
@@ -225,7 +222,7 @@ public static class SmartRoaming
 
             var nodePosition = enemy.currentSearch.unsearchedNodes[i].transform.position;
 
-            if ((nodePosition - enemy.currentSearch.currentSearchStartPosition).sqrMagnitude > searchWidthSqr)
+            if ((nodePosition - enemy.currentSearch.currentSearchStartPosition).sqrMagnitude > enemy.currentSearch.searchWidth * enemy.currentSearch.searchWidth)
             {
                 enemy.EliminateNodeFromSearch(i);
                 continue;
