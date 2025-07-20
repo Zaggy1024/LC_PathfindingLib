@@ -112,3 +112,7 @@ query.GetPathResult(pathNodes);
 // NavMeshQuery.
 NavMeshLock.EndRead();
 ```
+
+## Credits
+- Zaggy1024 - Initial development and maintenance
+- mattymatty - Lots of general assistance, and the entire D* implementation used in the smart pathfinding
