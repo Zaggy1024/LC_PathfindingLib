@@ -5,6 +5,8 @@ using UnityEngine;
 
 namespace PathfindingLib.API.SmartPathfinding;
 
+#nullable enable
+
 public static class SmartRoaming
 {
     public static bool useVanilla = false;
@@ -13,7 +15,7 @@ public static class SmartRoaming
 
     private static readonly List<Vector3> unsearchedNodePositions = [];
 
-    public static void StartSmartSearch(this EnemyAI enemy, Vector3 startOfSearch, SmartPathfindingLinkFlags allowedLinks, SmartTraversalFunction traversalFunction, AISearchRoutine newSearch = null)
+    public static void StartSmartSearch(this EnemyAI enemy, Vector3 startOfSearch, SmartPathfindingLinkFlags allowedLinks, SmartTraversalFunction traversalFunction, AISearchRoutine? newSearch = null)
     {
         newSearch ??= new AISearchRoutine();
 
@@ -39,7 +41,7 @@ public static class SmartRoaming
         ((ISmartAI)enemy).GoToSmartPathDestination(in destination);
     }
 
-    public static void StartSmartSearch<T>(this T enemy, Vector3 startOfSearch, SmartPathfindingLinkFlags allowedLinks, AISearchRoutine newSearch = null) where T : EnemyAI, ISmartAI
+    public static void StartSmartSearch<T>(this T enemy, Vector3 startOfSearch, SmartPathfindingLinkFlags allowedLinks, AISearchRoutine? newSearch = null) where T : EnemyAI, ISmartAI
     {
         enemy.StartSmartSearch(startOfSearch, allowedLinks, SendSmartAIToSmartDestination, newSearch);
     }
@@ -181,7 +183,7 @@ public static class SmartRoaming
     {
         yield return null;
 
-        GameObject chosenNode = null;
+        GameObject? chosenNode = null;
         var chosenNodeDistance = 500f;
 
         // Collect all node positions into a list to pass to the smart pathfinding task.
