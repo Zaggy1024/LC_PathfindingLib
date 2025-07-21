@@ -5,6 +5,7 @@ using Unity.Jobs;
 using UnityEngine.AI;
 using UnityEngine;
 
+using PathfindingLib.Components;
 using PathfindingLib.Jobs;
 using PathfindingLib.Utilities.Collections;
 
@@ -170,6 +171,6 @@ public sealed class SmartPathTask : IDisposable
 
     ~SmartPathTask()
     {
-        Dispose();
+        SmartPathTaskDisposer.Enqueue(this);
     }
 }

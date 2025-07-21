@@ -3,7 +3,9 @@ using System.Diagnostics;
 using BepInEx;
 using BepInEx.Logging;
 using HarmonyLib;
+using UnityEngine;
 
+using PathfindingLib.Components;
 using PathfindingLib.Patches;
 using PathfindingLib.Patches.Native;
 using PathfindingLib.Utilities;
@@ -31,6 +33,11 @@ public class PathfindingLibPlugin : BaseUnityPlugin
         harmony.PatchAll(typeof(PatchNavMeshSurface));
         harmony.PatchAll(typeof(PatchEntranceTeleport));
         harmony.PatchAll(typeof(PatchMineshaftElevatorController));
+
+        var disposerObject = new GameObject("SmartPathTaskDisposer");
+        DontDestroyOnLoad(disposerObject);
+        disposerObject.hideFlags = HideFlags.HideAndDontSave;
+        disposerObject.AddComponent<SmartPathTaskDisposer>();
     }
 
     private static ProcessModule GetUnityPlayerModule()
