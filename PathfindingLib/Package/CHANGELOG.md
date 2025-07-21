@@ -1,3 +1,6 @@
+## Version 1.0.1
+- Fixed errors that could occur if a `SmartPathTask` was allowed to be garbage collected instead of being `Dispose()`d.
+
 ## Version 1.0.0
 - New APIs:
     - `SmartPathfinding`: A static class with methods to register smart agents, elevators, and teleporters for the smart pathfinding system.
