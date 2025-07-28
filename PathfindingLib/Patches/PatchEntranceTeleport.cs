@@ -33,7 +33,6 @@ internal static class PatchEntranceTeleport
     [HarmonyPatch(typeof(RoundManager), nameof(RoundManager.SetExitIDs))]
     private static void SetExitIDsPostfix()
     {
-        //PathfindingLibPlugin.Instance.Logger.LogInfo($"SetExitIDsPostfix");
         foreach (var teleport in allEntranceTeleports)
         {
             if (!teleport.isActiveAndEnabled)
@@ -48,7 +47,7 @@ internal static class PatchEntranceTeleport
                 if (teleport.isEntranceToBuilding == otherTeleport.isEntranceToBuilding)
                     continue;
 
-                //PathfindingLibPlugin.Instance.Logger.LogInfo($"{teleport} ({teleport.GetInstanceID()}) connects to {teleport} ({teleport.GetInstanceID()})");
+                PathfindingLibPlugin.Instance.Logger.LogDebug($"{teleport} ({teleport.NetworkObjectId}) connects to {otherTeleport} ({otherTeleport.NetworkObjectId})");
                 SmartPathLinks.RegisterEntranceTeleport(teleport, otherTeleport.entrancePoint);
                 break;
             }
