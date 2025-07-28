@@ -145,6 +145,8 @@ internal sealed class SmartPathJobDataContainer : IDisposable
         {
             if (entranceLink.teleport == null || !entranceLink.teleport.isActiveAndEnabled)
                 continue;
+            if (entranceLink.exit == null)
+                continue;
 
             var linkFlag = entranceLink.teleport.entranceId == 0 ? SmartPathfindingLinkFlags.MainEntrance : SmartPathfindingLinkFlags.FireExits;
             if ((allowedLinks & linkFlag) == 0)
