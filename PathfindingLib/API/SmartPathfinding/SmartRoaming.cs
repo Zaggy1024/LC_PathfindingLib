@@ -15,7 +15,19 @@ public static class SmartRoaming
 
     private static readonly List<Vector3> unsearchedNodePositions = [];
 
-    public static void StartSmartSearch(this EnemyAI enemy, Vector3 startOfSearch, SmartPathfindingLinkFlags allowedLinks, SmartTraversalFunction traversalFunction, AISearchRoutine? newSearch = null)
+    public struct Config(SmartPathfindingLinkFlags allowedLinks)
+    {
+        /// <summary>
+        /// The links that the agent is allowed to use when roaming.
+        /// </summary>
+        public SmartPathfindingLinkFlags allowedLinks = allowedLinks;
+        /// <summary>
+        /// The amount of time that an agent is allowed to spend navigating to a single node in the search routine.
+        /// </summary>
+        public float timeToNavigateToCurrentDestination = 16f;
+    }
+
+    public static void StartSmartSearch(this EnemyAI enemy, Vector3 startOfSearch, Config config, SmartTraversalFunction traversalFunction, AISearchRoutine? newSearch = null)
     {
         newSearch ??= new AISearchRoutine();
 
@@ -32,8 +44,14 @@ public static class SmartRoaming
         if (useVanilla)
             enemy.searchCoroutine = enemy.StartCoroutine(enemy.CurrentSearchCoroutine());
         else
-            enemy.searchCoroutine = enemy.StartCoroutine(enemy.CurrentSmartSearchCoroutine(allowedLinks, traversalFunction));
+            enemy.searchCoroutine = enemy.StartCoroutine(enemy.CurrentSmartSearchCoroutine(config, traversalFunction));
         enemy.currentSearch.inProgress = true;
+    }
+
+    public static void StartSmartSearch(this EnemyAI enemy, Vector3 startOfSearch, SmartPathfindingLinkFlags allowedLinks, SmartTraversalFunction traversalFunction, AISearchRoutine? newSearch = null)
+    {
+        var config = new Config(allowedLinks);
+        StartSmartSearch(enemy, startOfSearch, config, traversalFunction, newSearch);
     }
 
     private static void SendSmartAIToSmartDestination(EnemyAI enemy, in SmartPathDestination destination)
@@ -41,12 +59,17 @@ public static class SmartRoaming
         ((ISmartAI)enemy).GoToSmartPathDestination(in destination);
     }
 
+    public static void StartSmartSearch<T>(this T enemy, Vector3 startOfSearch, Config config, AISearchRoutine? newSearch = null) where T : EnemyAI, ISmartAI
+    {
+        enemy.StartSmartSearch(startOfSearch, config, SendSmartAIToSmartDestination, newSearch);
+    }
+
     public static void StartSmartSearch<T>(this T enemy, Vector3 startOfSearch, SmartPathfindingLinkFlags allowedLinks, AISearchRoutine? newSearch = null) where T : EnemyAI, ISmartAI
     {
         enemy.StartSmartSearch(startOfSearch, allowedLinks, SendSmartAIToSmartDestination, newSearch);
     }
 
-    public static IEnumerator CurrentSmartSearchCoroutine(this EnemyAI enemy, SmartPathfindingLinkFlags allowedLinks, SmartTraversalFunction traversalFunction)
+    public static IEnumerator CurrentSmartSearchCoroutine(this EnemyAI enemy, Config config, SmartTraversalFunction traversalFunction)
     {
         yield return null;
 
@@ -83,7 +106,7 @@ public static class SmartRoaming
             else
             {
                 enemy.currentSearch.waitingForTargetNode = true;
-                enemy.StartCalculatingNextSmartTargetNode(allowedLinks);
+                enemy.StartCalculatingNextSmartTargetNode(config.allowedLinks);
 
                 yield return new WaitUntil(() => enemy.currentSearch.choseTargetNode);
             }
@@ -99,7 +122,7 @@ public static class SmartRoaming
             {
                 if (currentNodePathTask.IsResultReady(0) && currentNodePathTask.GetResult(0) is SmartPathDestination destination)
                     traversalFunction(enemy, in destination);
-                currentNodePathTask.StartPathTask(enemy.agent, enemy.transform.position, enemy.currentSearch.currentTargetNode.transform.position, allowedLinks);
+                currentNodePathTask.StartPathTask(enemy.agent, enemy.transform.position, enemy.currentSearch.currentTargetNode.transform.position, config.allowedLinks);
             }
             GoToCurrentDestination();
 
@@ -120,13 +143,13 @@ public static class SmartRoaming
             }
 
             // Calculate the next node ahead of time.
-            enemy.StartCalculatingNextSmartTargetNode(allowedLinks);
+            enemy.StartCalculatingNextSmartTargetNode(config.allowedLinks);
 
             // Wait for the current target to be reached.
             currentTargetPos = enemy.currentSearch.currentTargetNode.transform.position;
             searchPrecisionSqr = enemy.currentSearch.searchPrecision * enemy.currentSearch.searchPrecision;
 
-            var pathingTime = 16f;
+            var pathingTime = config.timeToNavigateToCurrentDestination;
             var checkTime = 0f;
             while (enemy.searchCoroutine != null && pathingTime >= 0)
             {
