@@ -166,9 +166,8 @@ internal sealed class SmartPathJobDataContainer : IDisposable
 
 #if SMART_PATHFINDING_DEBUG
             linkNames.Add(entranceLink.teleport.ToString());
-            linkDestinationNames.Add(entranceLink.teleport.ToString());
+            linkDestinationNames.Add(entranceLink.exit.ToString());
 #endif
-            
         }
 
         // Populate the elevators' floors' links.
