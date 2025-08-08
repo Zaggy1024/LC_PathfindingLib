@@ -48,6 +48,19 @@ public struct SmartPathDestination
         private set;
     }
 
+    public readonly bool CanActivateDestination(Vector3 agentPosition)
+    {
+        if (Type == SmartDestinationType.Elevator)
+        {
+            var elevator = ElevatorFloor.Elevator;
+            if (Position != ElevatorFloor.Elevator.InsideButtonNavMeshNode.position)
+                return true;
+            return elevator.IsInsideElevator(agentPosition);
+        }
+
+        return true;
+    }
+
     public static SmartPathDestination DirectDestination(Vector3 position)
     {
         return new SmartPathDestination()

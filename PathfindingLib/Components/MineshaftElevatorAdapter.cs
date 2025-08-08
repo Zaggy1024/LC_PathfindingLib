@@ -8,6 +8,8 @@ public sealed class MineshaftElevatorAdapter : MonoBehaviour, IElevator
 {
     public MineshaftElevatorController controller;
 
+    private Collider insideCollider;
+
     private Transform insideButton;
 
     private Transform topCallButton;
@@ -18,6 +20,10 @@ public sealed class MineshaftElevatorAdapter : MonoBehaviour, IElevator
 
     private void Start()
     {
+        var physicsRegion = controller.GetComponentInChildren<PlayerPhysicsRegion>();
+        if (physicsRegion != null)
+            insideCollider = physicsRegion.physicsCollider;
+
         insideButton = controller.elevatorInsidePoint;
 
         topCallButton = controller.elevatorTopPoint;
@@ -78,6 +84,14 @@ public sealed class MineshaftElevatorAdapter : MonoBehaviour, IElevator
             return;
 
         controller.CallElevator(callDown);
+    }
+
+    public bool IsInsideElevator(Vector3 point)
+    {
+        if (insideCollider == null)
+            return (insideButton.position - point).sqrMagnitude <= 1f;
+
+        return insideCollider.ClosestPoint(point) == point;
     }
 
     public float TimeToCompleteCurrentMovement()

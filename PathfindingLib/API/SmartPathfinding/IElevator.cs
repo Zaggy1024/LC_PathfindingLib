@@ -51,6 +51,13 @@ public interface IElevator
     public void GoToFloor(ElevatorFloor floor);
 
     /// <summary>
+    /// Checks whether a point is within the navmesh of the inside of the elevator.
+    /// </summary>
+    /// <param name="point">The point to check.</param>
+    /// <returns>Whether the point is within the elevator interior.</returns>
+    public bool IsInsideElevator(Vector3 point);
+
+    /// <summary>
     /// Gets the display name for the provided floor in this elevator for the purposes of
     /// debugging. By default, this will be the name of the call button at that floor.
     /// </summary>
