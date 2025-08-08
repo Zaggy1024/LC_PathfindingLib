@@ -1,3 +1,8 @@
+## Version 2.0.0
+- Added the `IElevator.IsInsideElevator(Vector3)` to determine if a point is inside the physical bounds of the elevator, which is required to be implemented for all registered elevators.
+- Added the `SmartPathDestination.CanActivateDestination(Vector3)` method which determines whether an agent at that position can activate/use the destination. This is intended to prevent agents from pressing the button to send an elevator to a floor without being inside first, preventing AI from getting stuck repeatedly hitting elevator buttons.
+- Allowed users of the `SmartRoaming` API to customize the distance that an agent is allowed to spend navigating to a node.
+
 ## Version 1.0.1
 - Fixed errors that could occur if a `SmartPathTask` was allowed to be garbage collected instead of being `Dispose()`d.
 
