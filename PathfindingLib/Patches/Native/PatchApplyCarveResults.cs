@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 using MonoMod.RuntimeDetour;
 
 using PathfindingLib.API;
-using PathfindingLib.Utilities;
+using PathfindingLib.Utilities.Native;
 
 namespace PathfindingLib.Patches.Native;
 

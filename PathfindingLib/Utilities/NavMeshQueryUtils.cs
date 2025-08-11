@@ -7,6 +7,8 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Experimental.AI;
 
+using PathfindingLib.Utilities.Native;
+
 namespace PathfindingLib.Utilities;
 
 [Flags]

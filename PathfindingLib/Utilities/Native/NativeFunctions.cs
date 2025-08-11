@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 
-namespace PathfindingLib.Utilities;
+namespace PathfindingLib.Utilities.Native;
 
 internal static class NativeFunctions
 {

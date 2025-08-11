@@ -9,6 +9,7 @@ using PathfindingLib.Components;
 using PathfindingLib.Patches;
 using PathfindingLib.Patches.Native;
 using PathfindingLib.Utilities;
+using PathfindingLib.Utilities.Native;
 
 namespace PathfindingLib;
 

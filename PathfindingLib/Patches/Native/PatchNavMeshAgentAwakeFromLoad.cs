@@ -1,10 +1,10 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 
 using MonoMod.RuntimeDetour;
 
 using PathfindingLib.API.SmartPathfinding;
-using PathfindingLib.Utilities;
+using PathfindingLib.Utilities.Native;
 
 namespace PathfindingLib.Patches.Native;
 
