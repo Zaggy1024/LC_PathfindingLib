@@ -1,3 +1,6 @@
+## Version 2.1.0
+- Fixed a crash on Bozoros caused by moving NavMeshLinks.
+
 ## Version 2.0.0
 - Added the `IElevator.IsInsideElevator(Vector3)` to determine if a point is inside the physical bounds of the elevator, which is required to be implemented for all registered elevators.
 - Added the `SmartPathDestination.CanActivateDestination(Vector3)` method which determines whether an agent at that position can activate/use the destination. This is intended to prevent agents from pressing the button to send an elevator to a floor without being inside first, preventing AI from getting stuck repeatedly hitting elevator buttons.
