@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 
 namespace PathfindingLib.Utilities.Native;
@@ -14,22 +14,22 @@ internal static class NativeFunctions
 
     // Delegate for Component::GetName()
     [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
-    private unsafe delegate char* GetNameDelegate(IntPtr thisComponent);
+    private unsafe delegate char* GetNameDelegate(IntPtr component);
 
     private static GetNameDelegate getNameMethod;
 
     private static void SetUpGetName(IntPtr baseAddress)
     {
-        var getNameOffset = 0x3714F0UL;
+        var functionOffset = 0x3714F0;
         if (IsDebugBuild)
-            getNameOffset = 0x540f00UL;
-        var getNameAddress = (IntPtr)((ulong)baseAddress + getNameOffset);
+            functionOffset = 0x540F00;
+        var functionAddress = baseAddress + functionOffset;
 
-        getNameMethod = Marshal.GetDelegateForFunctionPointer<GetNameDelegate>(getNameAddress);
+        getNameMethod = Marshal.GetDelegateForFunctionPointer<GetNameDelegate>(functionAddress);
     }
 
-    internal static unsafe string GetName(IntPtr thisComponent)
+    internal static unsafe string GetName(IntPtr component)
     {
-        return Marshal.PtrToStringAnsi((IntPtr)getNameMethod(thisComponent));
+        return Marshal.PtrToStringAnsi((IntPtr)getNameMethod(component));
     }
 }
