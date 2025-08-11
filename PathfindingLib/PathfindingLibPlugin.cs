@@ -60,6 +60,7 @@ public class PathfindingLibPlugin : BaseUnityPlugin
         NativeFunctions.SetUpNativeMethodPointers(module.BaseAddress);
         NavMeshQueryUtils.SetUpNativeMethodPointers(module.BaseAddress);
 
+        PatchNavMeshManagerUpdate.Apply(module.BaseAddress);
         PatchConnectUnconnectOffMeshConnection.Apply(module.BaseAddress);
         PatchApplyCarveResults.Apply(module.BaseAddress);
         PatchNavMeshAgent.Apply(module.BaseAddress);
