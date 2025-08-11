@@ -20,7 +20,7 @@
         <PackageReference Include="LethalCompany.GameLibs.Steam" Version="64.0.0-ngd.0" Private="False" Publicize="true" />
     </ItemGroup>
 
-    <Target Name="CopyToPackage" AfterTargets="AfterBuild">
+    <Target Name="CopyToPackage" AfterTargets="AfterBuild" Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
         <Copy SourceFiles="$(SolutionDir)LICENSE" DestinationFolder="$(MSBuildProjectDirectory)\Package" />
         <Copy SourceFiles="$(SolutionDir)README.md" DestinationFolder="$(MSBuildProjectDirectory)\Package" />
         <Copy SourceFiles="$(OutDir)PathfindingLib.dll" DestinationFolder="$(MSBuildProjectDirectory)\Package" />
