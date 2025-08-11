@@ -1,0 +1,74 @@
+using System;
+using System.Runtime.InteropServices;
+
+using MonoMod.RuntimeDetour;
+
+using PathfindingLib.API;
+using PathfindingLib.Utilities.Native;
+
+namespace PathfindingLib.Patches.Native;
+
+internal static class PatchConnectUnconnectOffMeshConnection
+{
+    internal static void Apply(IntPtr baseAddress)
+    {
+        SetUpConnectOffMeshConnectionDetour(baseAddress);
+        SetUpUnconnectOffMeshConnectionDetour(baseAddress);
+    }
+
+    // NavMesh::ConnectOffMeshConnection()
+    [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
+    private delegate void ConnectOffMeshConnectionDelegate(IntPtr navMesh, uint index, float rangeX, float rangeY);
+
+    private static NativeDetour connectOffMeshConnectionDetour;
+
+    private static ConnectOffMeshConnectionDelegate connectOffMeshConnectionOriginal;
+
+    private static void SetUpConnectOffMeshConnectionDetour(IntPtr baseAddress)
+    {
+        var functionOffset = 0xA54AD0;
+        if (NativeFunctions.IsDebugBuild)
+            functionOffset = 0x12AD4C0;
+        var functionAddress = baseAddress + functionOffset;
+
+        var hookPtr = Marshal.GetFunctionPointerForDelegate<ConnectOffMeshConnectionDelegate>(ConnectOffMeshConnectionDetour);
+
+        connectOffMeshConnectionDetour = new NativeDetour(functionAddress, hookPtr);
+        connectOffMeshConnectionOriginal = connectOffMeshConnectionDetour.GenerateTrampoline<ConnectOffMeshConnectionDelegate>();
+    }
+
+    private static void ConnectOffMeshConnectionDetour(IntPtr navMesh, uint index, float rangeX, float rangeY)
+    {
+        NavMeshLock.BeginWrite();
+        connectOffMeshConnectionOriginal(navMesh, index, rangeX, rangeY);
+        NavMeshLock.EndWrite();
+    }
+
+    // NavMesh::UnconnectOffMeshConnection()
+    [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
+    private delegate void UnconnectOffMeshConnectionDelegate(IntPtr navMesh, uint index);
+
+    private static NativeDetour unconnectOffMeshConnectionDetour;
+
+    private static UnconnectOffMeshConnectionDelegate unconnectOffMeshConnectionOriginal;
+
+    private static void SetUpUnconnectOffMeshConnectionDetour(IntPtr baseAddress)
+    {
+        var functionOffset = 0xA55C30;
+        if (NativeFunctions.IsDebugBuild)
+            functionOffset = 0x12B9520;
+        var functionAddress = baseAddress + functionOffset;
+
+        var hookPtr = Marshal.GetFunctionPointerForDelegate<UnconnectOffMeshConnectionDelegate>(UnconnectOffMeshConnectionDetour);
+
+        unconnectOffMeshConnectionDetour = new NativeDetour(functionAddress, hookPtr);
+        unconnectOffMeshConnectionOriginal = unconnectOffMeshConnectionDetour.GenerateTrampoline<UnconnectOffMeshConnectionDelegate>();
+    }
+
+    private static void UnconnectOffMeshConnectionDetour(IntPtr navMesh, uint index)
+    {
+        NavMeshLock.BeginWrite();
+        unconnectOffMeshConnectionOriginal(navMesh, index);
+        NavMeshLock.EndWrite();
+    }
+}

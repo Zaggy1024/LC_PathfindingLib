@@ -59,6 +59,8 @@ public class PathfindingLibPlugin : BaseUnityPlugin
         var module = GetUnityPlayerModule();
         NativeFunctions.SetUpNativeMethodPointers(module.BaseAddress);
         NavMeshQueryUtils.SetUpNativeMethodPointers(module.BaseAddress);
+
+        PatchConnectUnconnectOffMeshConnection.Apply(module.BaseAddress);
         PatchApplyCarveResults.Apply(module.BaseAddress);
         PatchNavMeshAgent.Apply(module.BaseAddress);
     }
