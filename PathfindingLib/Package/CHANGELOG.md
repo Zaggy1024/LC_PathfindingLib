@@ -1,3 +1,6 @@
+## Version 2.1.1
+- Re-release of 2.1.0 without debug functionality.
+
 ## Version 2.1.0
 - Fixed a crash on Bozoros caused by moving NavMeshLinks.
 
