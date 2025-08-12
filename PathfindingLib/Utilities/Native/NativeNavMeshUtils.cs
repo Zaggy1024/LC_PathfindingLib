@@ -76,15 +76,15 @@ public static class NativeNavMeshUtils
     // See OffMeshLink::UpdateMovedPositions()
     internal static unsafe void GetOffMeshLinkFields(IntPtr offMeshLink, out bool autoUpdate, out bool skipUpdate, out float updateDistance, out IntPtr startTransformPtr, out IntPtr endTransformPtr, out Vector3 lastStartTransformPos, out Vector3 lastEndTransformPos)
     {
-        var fieldsBaseOffset = offMeshLink + (NativeFunctions.IsDebugBuild ? 0x60 : 0x48);
+        var fieldsBaseAddress = offMeshLink + (NativeFunctions.IsDebugBuild ? 0x60 : 0x48);
 
-        startTransformPtr = NativeFunctions.DerefPPtr(fieldsBaseOffset + 0x0);
-        endTransformPtr = NativeFunctions.DerefPPtr(fieldsBaseOffset + 0x4);
-        lastEndTransformPos = *(Vector3*)(fieldsBaseOffset + 0x8);
-        lastStartTransformPos = *(Vector3*)(fieldsBaseOffset + 0x14);
-        updateDistance = *(float*)(fieldsBaseOffset + 0x20);
-        autoUpdate = *(bool*)(fieldsBaseOffset + 0x34);
-        skipUpdate = *(bool*)(fieldsBaseOffset + 0x35);
+        startTransformPtr = NativeFunctions.DerefPPtr(fieldsBaseAddress + 0x0);
+        endTransformPtr = NativeFunctions.DerefPPtr(fieldsBaseAddress + 0x4);
+        lastEndTransformPos = *(Vector3*)(fieldsBaseAddress + 0x8);
+        lastStartTransformPos = *(Vector3*)(fieldsBaseAddress + 0x14);
+        updateDistance = *(float*)(fieldsBaseAddress + 0x20);
+        autoUpdate = *(bool*)(fieldsBaseAddress + 0x34);
+        skipUpdate = *(bool*)(fieldsBaseAddress + 0x35);
     }
 
     internal static unsafe void GetOffMeshLinkData(IntPtr offMeshLink, out bool autoUpdate, out bool skipUpdate, out float updateDistance, out Vector3 startPos, out Vector3 endPos, out Vector3 lastStartPos, out Vector3 lastEndPos)
