@@ -1,3 +1,6 @@
+## Version 2.1.2
+- Fixed a crash with off-mesh links that are missing one or both endpoint transforms. This was causing a crash upon landing on Black Mesa.
+
 ## Version 2.1.1
 - Re-release of 2.1.0 without debug functionality.
 
