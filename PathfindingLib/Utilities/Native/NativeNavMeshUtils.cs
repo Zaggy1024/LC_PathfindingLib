@@ -87,11 +87,18 @@ public static class NativeNavMeshUtils
         skipUpdate = *(bool*)(fieldsBaseAddress + 0x35);
     }
 
+    private static Vector3 GetOffMeshLinkEndPointPosition(IntPtr transform)
+    {
+        if (transform == IntPtr.Zero)
+            return Vector3.positiveInfinity;
+        return NativeFunctions.GetPosition(transform);
+    }
+
     internal static unsafe void GetOffMeshLinkData(IntPtr offMeshLink, out bool autoUpdate, out bool skipUpdate, out float updateDistance, out Vector3 startPos, out Vector3 endPos, out Vector3 lastStartPos, out Vector3 lastEndPos)
     {
         GetOffMeshLinkFields(offMeshLink, out autoUpdate, out skipUpdate, out updateDistance, out var startTransformPtr, out var endTransformPtr, out lastStartPos, out lastEndPos);
-        startPos = NativeFunctions.GetPosition(startTransformPtr);
-        endPos = NativeFunctions.GetPosition(endTransformPtr);
+        startPos = GetOffMeshLinkEndPointPosition(startTransformPtr);
+        endPos = GetOffMeshLinkEndPointPosition(endTransformPtr);
     }
 
     internal static unsafe bool OffMeshLinkWillUpdate(IntPtr offMeshLink)
