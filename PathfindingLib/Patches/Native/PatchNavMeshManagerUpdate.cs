@@ -18,12 +18,12 @@ internal static class PatchNavMeshManagerUpdate
 
     private static UpdateDelegate original;
 
-    internal static void Apply(IntPtr baseAddress)
+    internal static void Apply()
     {
         var functionOffset = 0xA29B00;
-        if (NativeFunctions.IsDebugBuild)
+        if (NativeHelpers.IsDebugBuild)
             functionOffset = 0x1284E80;
-        var functionAddress = baseAddress + functionOffset;
+        var functionAddress = NativeHelpers.BaseAddress + functionOffset;
 
         var hookPtr = Marshal.GetFunctionPointerForDelegate<UpdateDelegate>(UpdateDetour);
 
@@ -33,7 +33,7 @@ internal static class PatchNavMeshManagerUpdate
 
     private static unsafe IntPtr GetNavMeshCarving(IntPtr navMeshManager)
     {
-        if (NativeFunctions.IsDebugBuild)
+        if (NativeHelpers.IsDebugBuild)
             return *(IntPtr*)(navMeshManager + 0xB0);
         return *(IntPtr*)(navMeshManager + 0x98);
     }

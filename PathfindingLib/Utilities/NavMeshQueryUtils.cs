@@ -148,12 +148,12 @@ public static class NavMeshQueryUtils
 
     private static FindStraightPathDelegate findStraightPathMethod;
 
-    internal static void SetUpNativeMethodPointers(IntPtr baseAddress)
+    internal static void SetUpNativeMethodPointers()
     {
-        var functionOffset = 0xA59270UL;
-        if (NativeFunctions.IsDebugBuild)
-            functionOffset = 0x12B0040UL;
-        var functionAddress = (IntPtr)((ulong)baseAddress + functionOffset);
+        var functionOffset = 0xA59270;
+        if (NativeHelpers.IsDebugBuild)
+            functionOffset = 0x12B0040;
+        var functionAddress = NativeHelpers.BaseAddress + functionOffset;
 
         findStraightPathMethod = Marshal.GetDelegateForFunctionPointer<FindStraightPathDelegate>(functionAddress);
     }

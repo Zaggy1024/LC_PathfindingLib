@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 
 using UnityEngine;
@@ -7,13 +7,11 @@ namespace PathfindingLib.Utilities.Native;
 
 internal static class NativeFunctions
 {
-    internal readonly static bool IsDebugBuild = UnityEngine.Debug.isDebugBuild;
-
-    internal static void SetUpNativeMethodPointers(IntPtr baseAddress)
+    internal static void SetUpNativeMethodPointers()
     {
-        SetUpGetName(baseAddress);
-        SetUpGetPPtr(baseAddress);
-        SetUpGetPosition(baseAddress);
+        SetUpGetName();
+        SetUpGetPPtr();
+        SetUpGetPosition();
     }
 
     // Delegate for Component::GetName()
@@ -22,12 +20,12 @@ internal static class NativeFunctions
 
     private static GetNameDelegate getNameMethod;
 
-    private static void SetUpGetName(IntPtr baseAddress)
+    private static void SetUpGetName()
     {
         var functionOffset = 0x3714F0;
-        if (IsDebugBuild)
+        if (NativeHelpers.IsDebugBuild)
             functionOffset = 0x540F00;
-        var functionAddress = baseAddress + functionOffset;
+        var functionAddress = NativeHelpers.BaseAddress + functionOffset;
 
         getNameMethod = Marshal.GetDelegateForFunctionPointer<GetNameDelegate>(functionAddress);
     }
@@ -45,12 +43,12 @@ internal static class NativeFunctions
 
     private static DerefPPtrDelegate derefPPtrMethod;
 
-    private static void SetUpGetPPtr(IntPtr baseAddress)
+    private static void SetUpGetPPtr()
     {
         var functionOffset = 0x16A8C0;
-        if (IsDebugBuild)
+        if (NativeHelpers.IsDebugBuild)
             functionOffset = 0x48B610;
-        var functionAddress = baseAddress + functionOffset;
+        var functionAddress = NativeHelpers.BaseAddress + functionOffset;
 
         derefPPtrMethod = Marshal.GetDelegateForFunctionPointer<DerefPPtrDelegate>(functionAddress);
     }
@@ -67,12 +65,12 @@ internal static class NativeFunctions
 
     private static GetPositionDelegate getPositionMethod;
 
-    private static void SetUpGetPosition(IntPtr baseAddress)
+    private static void SetUpGetPosition()
     {
         var functionOffset = 0x667050;
-        if (IsDebugBuild)
+        if (NativeHelpers.IsDebugBuild)
             functionOffset = 0xC76330;
-        var functionAddress = baseAddress + functionOffset;
+        var functionAddress = NativeHelpers.BaseAddress + functionOffset;
 
         getPositionMethod = Marshal.GetDelegateForFunctionPointer<GetPositionDelegate>(functionAddress);
     }

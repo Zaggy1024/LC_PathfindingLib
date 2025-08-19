@@ -10,9 +10,9 @@ namespace PathfindingLib.Patches.Native;
 
 internal static class PatchNavMeshAgent
 {
-    internal static void Apply(IntPtr baseAddress)
+    internal static void Apply()
     {
-        HookAwakeFromLoad(baseAddress);
+        HookAwakeFromLoad();
     }
 
     // Detour for NavMeshAgent::AwakeFromLoad()
@@ -22,12 +22,12 @@ internal static class PatchNavMeshAgent
     private static NativeDetour awakeFromLoadDetour;
     private static AwakeFromLoadDelegate awakeFromLoadOriginal;
 
-    private static void HookAwakeFromLoad(IntPtr baseAddress)
+    private static void HookAwakeFromLoad()
     {
-        var awakeFromLoadOffset = 0xA3A810UL;
-        if (NativeFunctions.IsDebugBuild)
-            awakeFromLoadOffset = 0x1293A20UL;
-        var awakeFromLoadAddress = (IntPtr)((ulong)baseAddress + awakeFromLoadOffset);
+        var awakeFromLoadOffset = 0xA3A810;
+        if (NativeHelpers.IsDebugBuild)
+            awakeFromLoadOffset = 0x1293A20;
+        var awakeFromLoadAddress = NativeHelpers.BaseAddress + awakeFromLoadOffset;
 
         var hookPtr = Marshal.GetFunctionPointerForDelegate<AwakeFromLoadDelegate>(AwakeFromLoadDetour);
 
@@ -39,7 +39,7 @@ internal static class PatchNavMeshAgent
     {
         if (awakeFromLoadMode == 3)
         {
-            var maskAddress = NativeFunctions.IsDebugBuild ? 0x98L : 0x80L;
+            var maskAddress = NativeHelpers.IsDebugBuild ? 0x98L : 0x80L;
             ref var mask = ref *(int*)((long)thisNavMeshAgent + maskAddress);
 
             var oldMask = mask;

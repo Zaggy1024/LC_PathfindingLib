@@ -10,10 +10,11 @@ namespace PathfindingLib.Patches.Native;
 
 internal static class PatchConnectUnconnectOffMeshConnection
 {
-    internal static void Apply(IntPtr baseAddress)
+    internal static void Apply()
     {
-        SetUpConnectOffMeshConnectionDetour(baseAddress);
-        SetUpUnconnectOffMeshConnectionDetour(baseAddress);
+        var baseAddress = NativeHelpers.BaseAddress;
+        SetUpConnectOffMeshConnectionDetour();
+        SetUpUnconnectOffMeshConnectionDetour();
     }
 
     // NavMesh::ConnectOffMeshConnection()
@@ -24,12 +25,12 @@ internal static class PatchConnectUnconnectOffMeshConnection
 
     private static ConnectOffMeshConnectionDelegate connectOffMeshConnectionOriginal;
 
-    private static void SetUpConnectOffMeshConnectionDetour(IntPtr baseAddress)
+    private static void SetUpConnectOffMeshConnectionDetour()
     {
         var functionOffset = 0xA54AD0;
-        if (NativeFunctions.IsDebugBuild)
+        if (NativeHelpers.IsDebugBuild)
             functionOffset = 0x12AD4C0;
-        var functionAddress = baseAddress + functionOffset;
+        var functionAddress = NativeHelpers.BaseAddress + functionOffset;
 
         var hookPtr = Marshal.GetFunctionPointerForDelegate<ConnectOffMeshConnectionDelegate>(ConnectOffMeshConnectionDetour);
 
@@ -52,12 +53,12 @@ internal static class PatchConnectUnconnectOffMeshConnection
 
     private static UnconnectOffMeshConnectionDelegate unconnectOffMeshConnectionOriginal;
 
-    private static void SetUpUnconnectOffMeshConnectionDetour(IntPtr baseAddress)
+    private static void SetUpUnconnectOffMeshConnectionDetour()
     {
         var functionOffset = 0xA55C30;
-        if (NativeFunctions.IsDebugBuild)
+        if (NativeHelpers.IsDebugBuild)
             functionOffset = 0x12B9520;
-        var functionAddress = baseAddress + functionOffset;
+        var functionAddress = NativeHelpers.BaseAddress + functionOffset;
 
         var hookPtr = Marshal.GetFunctionPointerForDelegate<UnconnectOffMeshConnectionDelegate>(UnconnectOffMeshConnectionDetour);
 

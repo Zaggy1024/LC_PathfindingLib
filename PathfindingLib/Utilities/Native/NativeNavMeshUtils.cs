@@ -29,7 +29,7 @@ public static class NativeNavMeshUtils
         // the start and end of the valid data, then check if the end is greater than the start.
         var jobData = 0UL;
         var jobDataEnd = 0UL;
-        if (NativeFunctions.IsDebugBuild)
+        if (NativeHelpers.IsDebugBuild)
         {
             jobData = *(ulong*)(navMeshCarving + 0x38);
             jobDataEnd = *(ulong*)(navMeshCarving + 0x40);
@@ -46,7 +46,7 @@ public static class NativeNavMeshUtils
     // See NavMeshManager::Update().
     private static unsafe void GetOffMeshLinkList(IntPtr navMeshManager, out IntPtr offMeshLinks, out int offMeshLinkCount)
     {
-        if (NativeFunctions.IsDebugBuild)
+        if (NativeHelpers.IsDebugBuild)
         {
             offMeshLinks = *(IntPtr*)(navMeshManager + 0x70);
             offMeshLinkCount = *(int*)(navMeshManager + 0x88);
@@ -76,7 +76,7 @@ public static class NativeNavMeshUtils
     // See OffMeshLink::UpdateMovedPositions()
     internal static unsafe void GetOffMeshLinkFields(IntPtr offMeshLink, out bool autoUpdate, out bool skipUpdate, out float updateDistance, out IntPtr startTransformPtr, out IntPtr endTransformPtr, out Vector3 lastStartTransformPos, out Vector3 lastEndTransformPos)
     {
-        var fieldsBaseAddress = offMeshLink + (NativeFunctions.IsDebugBuild ? 0x60 : 0x48);
+        var fieldsBaseAddress = offMeshLink + (NativeHelpers.IsDebugBuild ? 0x60 : 0x48);
 
         startTransformPtr = NativeFunctions.DerefPPtr(fieldsBaseAddress + 0x0);
         endTransformPtr = NativeFunctions.DerefPPtr(fieldsBaseAddress + 0x4);

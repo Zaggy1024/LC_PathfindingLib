@@ -41,28 +41,14 @@ public class PathfindingLibPlugin : BaseUnityPlugin
         disposerObject.AddComponent<SmartPathTaskDisposer>();
     }
 
-    private static ProcessModule GetUnityPlayerModule()
-    {
-        var modules = Process.GetCurrentProcess().Modules;
-        for (var i = 0; i < modules.Count; i++)
-        {
-            var module = modules[i];
-            if (module.ModuleName.Contains("UnityPlayer"))
-                return module;
-        }
-
-        return null;
-    }
-
     private static void ApplyAllNativePatches()
     {
-        var module = GetUnityPlayerModule();
-        NativeFunctions.SetUpNativeMethodPointers(module.BaseAddress);
-        NavMeshQueryUtils.SetUpNativeMethodPointers(module.BaseAddress);
+        NativeFunctions.SetUpNativeMethodPointers();
+        NavMeshQueryUtils.SetUpNativeMethodPointers();
 
-        PatchNavMeshManagerUpdate.Apply(module.BaseAddress);
-        PatchConnectUnconnectOffMeshConnection.Apply(module.BaseAddress);
-        PatchApplyCarveResults.Apply(module.BaseAddress);
-        PatchNavMeshAgent.Apply(module.BaseAddress);
+        PatchNavMeshManagerUpdate.Apply();
+        PatchConnectUnconnectOffMeshConnection.Apply();
+        PatchApplyCarveResults.Apply();
+        PatchNavMeshAgent.Apply();
     }
 }

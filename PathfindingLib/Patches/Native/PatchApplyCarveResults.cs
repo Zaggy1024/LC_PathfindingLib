@@ -17,15 +17,15 @@ internal static class PatchApplyCarveResults
 
     private static ApplyCarveResultsDelegate original;
 
-    internal static void Apply(IntPtr baseAddress)
+    internal static void Apply()
     {
         // This should be set to the offset of NavMeshCarving::ApplyCarveResults(). When loading the
         // UnityPlayer dll, you may see the address including an offset like 0x180000000. If so, subtract
         // the base address (the address of the header) from the address of the function.
         var functionOffset = 0xA64E80;
-        if (NativeFunctions.IsDebugBuild)
+        if (NativeHelpers.IsDebugBuild)
             functionOffset = 0x12C1890;
-        var functionAddress = baseAddress + functionOffset;
+        var functionAddress = NativeHelpers.BaseAddress + functionOffset;
 
         var hookPtr = Marshal.GetFunctionPointerForDelegate<ApplyCarveResultsDelegate>(ApplyCarveResultsDetour);
 
