@@ -1,3 +1,6 @@
+## Version 2.1.3
+- Corrected the search area when mapping path origins and destinations onto the navmesh to match `NavMesh.CalculatePath()`.
+
 ## Version 2.1.2
 - Fixed a crash with off-mesh links that are missing one or both endpoint transforms. This was causing a crash upon landing on Black Mesa.
 
