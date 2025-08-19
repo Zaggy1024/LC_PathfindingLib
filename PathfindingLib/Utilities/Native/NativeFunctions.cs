@@ -12,6 +12,7 @@ internal static class NativeFunctions
         SetUpGetName();
         SetUpGetPPtr();
         SetUpGetPosition();
+        SetUpGetQueryExtents();
     }
 
     // Delegate for Component::GetName()
@@ -79,6 +80,29 @@ internal static class NativeFunctions
     {
         var result = Vector3.zero;
         getPositionMethod(transform, &result);
+        return result;
+    }
+
+    // Delegate for NavMeshManager::GetQueryExtents(int agentTypeID)
+    [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
+    private unsafe delegate void GetQueryExtentsDelegate(IntPtr navMeshManager, Vector3* result, int agentTypeID);
+
+    private static GetQueryExtentsDelegate getQueryExtentsMethod;
+
+    private static void SetUpGetQueryExtents()
+    {
+        var functionOffset = 0xA270C0;
+        if (NativeHelpers.IsDebugBuild)
+            functionOffset = 0x127CD40;
+        var functionAddress = NativeHelpers.BaseAddress + functionOffset;
+
+        getQueryExtentsMethod = Marshal.GetDelegateForFunctionPointer<GetQueryExtentsDelegate>(functionAddress);
+    }
+
+    internal static unsafe Vector3 GetQueryExtents(int agentTypeID)
+    {
+        var result = Vector3.zero;
+        getQueryExtentsMethod(NativeHelpers.GetNavMeshManager(), &result, agentTypeID);
         return result;
     }
 }

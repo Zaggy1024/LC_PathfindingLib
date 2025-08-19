@@ -39,6 +39,16 @@ public static class NavMeshQueryUtils
     }
 
     /// <summary>
+    /// Get the extents within which to search for the start and end of a path before beginning
+    /// finding a path.
+    /// </summary>
+    /// <returns>The extents to pass to <see cref="NavMeshQuery.MapLocation(Vector3, Vector3, int, int)"/> </returns>
+    public static Vector3 GetQueryExtents(int agentTypeID)
+    {
+        return NativeFunctions.GetQueryExtents(agentTypeID);
+    }
+
+    /// <summary>
     /// Calculate a straight path from the data produced by finding a path with NavMeshQuery.
     /// 
     /// <para>If this is called off the main thread, it should be called with the navmesh locked

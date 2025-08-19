@@ -57,6 +57,7 @@ internal struct SmartPathfindingJob : IJob
 
     [ReadOnly] private int agentTypeID;
     [ReadOnly] private int areaMask;
+    [ReadOnly] private Vector3 queryExtents;
     [ReadOnly] private Vector3 start;
     [ReadOnly, NativeDisableParallelForRestriction] private NativeArray<Vector3> goals;
     [ReadOnly] private int goalCount;
@@ -90,6 +91,7 @@ internal struct SmartPathfindingJob : IJob
 
         agentTypeID = data.agentTypeID;
         areaMask = data.areaMask;
+        queryExtents = NavMeshQueryUtils.GetQueryExtents(agentTypeID);
 
         start = data.pathStart;
         goals = data.pathGoals;
@@ -140,13 +142,12 @@ internal struct SmartPathfindingJob : IJob
         using var markerAuto = new TogglableProfilerAuto(in CalculateSinglePathMarker);
 #endif
 
-        var startLocation = query.MapLocation(origin, SharedJobValues.OriginExtents, agentTypeID, areaMask);
+        var startLocation = query.MapLocation(origin, queryExtents, agentTypeID, areaMask);
 
         if (!query.IsValid(startLocation.polygon))
             return float.PositiveInfinity;
 
-        var destinationExtents = SharedJobValues.DestinationExtents;
-        var destinationLocation = query.MapLocation(destination, destinationExtents, agentTypeID, areaMask);
+        var destinationLocation = query.MapLocation(destination, queryExtents, agentTypeID, areaMask);
         if (!query.IsValid(destinationLocation))
             return float.PositiveInfinity;
 

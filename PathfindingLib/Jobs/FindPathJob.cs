@@ -23,6 +23,7 @@ public struct FindPathJob : IJob, IDisposable
 
     [ReadOnly] private int AgentTypeID;
     [ReadOnly] private int AreaMask;
+    [ReadOnly] private Vector3 QueryExtents;
     [ReadOnly] private Vector3 Origin;
     [ReadOnly] private Vector3 Destination;
 
@@ -56,6 +57,7 @@ public struct FindPathJob : IJob, IDisposable
 
         AgentTypeID = agent.agentTypeID;
         AreaMask = agent.areaMask;
+        QueryExtents = NavMeshQueryUtils.GetQueryExtents(AgentTypeID);
         Origin = origin;
         Destination = destination;
 
@@ -98,7 +100,7 @@ public struct FindPathJob : IJob, IDisposable
         using var markerAuto = new TogglableProfilerAuto(in FindPathMarker);
 #endif
 
-        var origin = query.MapLocation(Origin, SharedJobValues.OriginExtents, AgentTypeID, AreaMask);
+        var origin = query.MapLocation(Origin, QueryExtents, AgentTypeID, AreaMask);
 
         if (!query.IsValid(origin.polygon))
         {
@@ -106,8 +108,7 @@ public struct FindPathJob : IJob, IDisposable
             return;
         }
 
-        var destinationExtents = SharedJobValues.DestinationExtents;
-        var destinationLocation = query.MapLocation(Destination, destinationExtents, AgentTypeID, AreaMask);
+        var destinationLocation = query.MapLocation(Destination, QueryExtents, AgentTypeID, AreaMask);
         if (!query.IsValid(destinationLocation))
         {
             Status[0] = PathQueryStatus.Failure;
