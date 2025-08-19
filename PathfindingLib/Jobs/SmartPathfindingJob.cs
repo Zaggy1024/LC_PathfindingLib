@@ -174,7 +174,7 @@ internal struct SmartPathfindingJob : IJob
         var pathNodes = new NativeArray<PolygonId>(pathNodesSize, Allocator.Temp);
         pathNodesSize = query.GetPathResult(pathNodes);
 
-        using var path = new NativeArray<Vector3>(NavMeshQueryUtils.RecommendedCornerCount, Allocator.Temp);
+        using var path = new NativeArray<Vector3>(NavMeshQueryUtils.RequiredCornerCount(pathNodesSize), Allocator.Temp);
         var straightPathStatus = NavMeshQueryUtils.FindStraightPath(query, origin, destination, pathNodes, pathNodesSize, path, out var pathSize);
         pathNodes.Dispose();
 
