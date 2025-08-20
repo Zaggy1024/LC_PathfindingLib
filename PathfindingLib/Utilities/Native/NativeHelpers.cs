@@ -1,6 +1,8 @@
 using System;
 using System.Diagnostics;
 
+using UnityEngine.AI;
+
 namespace PathfindingLib.Utilities.Native;
 
 internal static class NativeHelpers
@@ -36,5 +38,39 @@ internal static class NativeHelpers
         if (IsDebugBuild)
             return *(IntPtr*)(manager + 0xC0);
         return *(IntPtr*)(manager + 0xA8);
+    }
+
+    internal static unsafe IntPtr GetOffMeshConnectionFreeList()
+    {
+        var navMesh = GetNavMesh();
+
+        if (navMesh == IntPtr.Zero)
+            return IntPtr.Zero;
+
+        if (IsDebugBuild)
+            return navMesh + 0x48;
+        return navMesh + 0x40;
+    }
+
+    internal static unsafe ref OffMeshConnection GetOffMeshConnection(IntPtr list, uint index)
+    {
+        ref var asList = ref *(FreeList<OffMeshConnection>*)list;
+        if (index >= asList.Capacity)
+            throw new IndexOutOfRangeException($"{index} is beyond the capacity of the off-mesh connection freelist {asList.Capacity}.");
+
+        return ref asList.Elements[index];
+    }
+
+    internal static unsafe int GetInstanceID(IntPtr obj)
+    {
+        ref var offset = ref UnityEngine.Object.OffsetOfInstanceIDInCPlusPlusObject;
+        if (offset == -1)
+            offset = UnityEngine.Object.GetOffsetOfInstanceIDInCPlusPlusObject();
+        return *(int*)(obj + offset);
+    }
+
+    internal static OffMeshLink GetOffMeshLinkWrapper(int instanceID)
+    {
+        return OffMeshLinkData.GetOffMeshLinkInternal(instanceID);
     }
 }

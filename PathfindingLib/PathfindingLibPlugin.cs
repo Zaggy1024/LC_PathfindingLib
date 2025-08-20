@@ -48,5 +48,6 @@ public class PathfindingLibPlugin : BaseUnityPlugin
         PatchConnectUnconnectOffMeshConnection.Apply();
         PatchApplyCarveResults.Apply();
         PatchNavMeshAgent.Apply();
+        PatchOffMeshLinkUpdatePositions.Apply();
     }
 }

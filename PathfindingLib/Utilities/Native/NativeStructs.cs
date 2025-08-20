@@ -13,6 +13,14 @@ internal struct PPtr<T> where T : unmanaged
     public int Ptr;
 }
 
+[StructLayout(LayoutKind.Sequential)]
+internal unsafe struct FreeList<T> where T : unmanaged
+{
+    public uint NextFree;
+    public uint Capacity;
+    public T* Elements;
+}
+
 [StructLayout(LayoutKind.Explicit)]
 internal struct NativeTransform
 {

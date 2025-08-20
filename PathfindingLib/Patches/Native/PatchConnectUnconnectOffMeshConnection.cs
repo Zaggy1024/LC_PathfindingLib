@@ -45,6 +45,11 @@ internal static class PatchConnectUnconnectOffMeshConnection
         NavMeshLock.EndWrite();
     }
 
+    internal static void ConnectOffMeshConnection(IntPtr navMesh, uint index, float rangeX, float rangeY)
+    {
+        connectOffMeshConnectionOriginal(navMesh, index, rangeX, rangeY);
+    }
+
     // NavMesh::UnconnectOffMeshConnection()
     [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
     private delegate void UnconnectOffMeshConnectionDelegate(IntPtr navMesh, uint index);
@@ -71,5 +76,10 @@ internal static class PatchConnectUnconnectOffMeshConnection
         NavMeshLock.BeginWrite();
         unconnectOffMeshConnectionOriginal(navMesh, index);
         NavMeshLock.EndWrite();
+    }
+
+    internal static void UnconnectOffMeshConnection(IntPtr navMesh, uint index)
+    {
+        unconnectOffMeshConnectionOriginal(navMesh, index);
     }
 }

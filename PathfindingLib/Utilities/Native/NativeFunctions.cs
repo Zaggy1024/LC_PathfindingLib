@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.InteropServices;
 
 using UnityEngine;
@@ -13,6 +13,7 @@ internal static class NativeFunctions
         SetUpGetPPtr();
         SetUpGetPosition();
         SetUpGetQueryExtents();
+        SetUpGetLinkQueryExtents();
     }
 
     // Delegate for Component::GetName()
@@ -103,6 +104,29 @@ internal static class NativeFunctions
     {
         var result = Vector3.zero;
         getQueryExtentsMethod(NativeHelpers.GetNavMeshManager(), &result, agentTypeID);
+        return result;
+    }
+
+    // Delegate for NavMeshManager::GetLinkQueryExtents(int agentTypeID)
+    [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
+    private unsafe delegate void GetLinkQueryExtentsDelegate(IntPtr navMeshManager, Vector3* result, int agentTypeID);
+
+    private static GetLinkQueryExtentsDelegate getLinkQueryExtentsMethod;
+
+    private static void SetUpGetLinkQueryExtents()
+    {
+        var functionOffset = 0xA27220;
+        if (NativeHelpers.IsDebugBuild)
+            functionOffset = 0x127C9D0;
+        var functionAddress = NativeHelpers.BaseAddress + functionOffset;
+
+        getLinkQueryExtentsMethod = Marshal.GetDelegateForFunctionPointer<GetLinkQueryExtentsDelegate>(functionAddress);
+    }
+
+    internal static unsafe Vector3 GetLinkQueryExtents(int agentTypeID)
+    {
+        var result = Vector3.zero;
+        getLinkQueryExtentsMethod(NativeHelpers.GetNavMeshManager(), &result, agentTypeID);
         return result;
     }
 }
