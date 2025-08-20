@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 
 using UnityEngine;
@@ -79,7 +79,7 @@ internal static class NativeFunctions
 
     internal static unsafe Vector3 GetPosition(IntPtr transform)
     {
-        var result = Vector3.zero;
+        Vector3 result = default;
         getPositionMethod(transform, &result);
         return result;
     }
