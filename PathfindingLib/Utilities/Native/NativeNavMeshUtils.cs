@@ -73,47 +73,38 @@ public static class NativeNavMeshUtils
             yield return GetOffMeshLinkFromList(links, i);
     }
 
-    // See OffMeshLink::UpdateMovedPositions()
-    internal static unsafe void GetOffMeshLinkFields(IntPtr offMeshLink, out bool autoUpdate, out bool skipUpdate, out float updateDistance, out IntPtr startTransformPtr, out IntPtr endTransformPtr, out Vector3 lastStartTransformPos, out Vector3 lastEndTransformPos)
+    internal static unsafe ref OffMeshLinkFields GetOffMeshLinkFields(IntPtr offMeshLink)
     {
-        var fieldsBaseAddress = offMeshLink + (NativeHelpers.IsDebugBuild ? 0x60 : 0x48);
-
-        startTransformPtr = NativeFunctions.DerefPPtr(fieldsBaseAddress + 0x0);
-        endTransformPtr = NativeFunctions.DerefPPtr(fieldsBaseAddress + 0x4);
-        lastEndTransformPos = *(Vector3*)(fieldsBaseAddress + 0x8);
-        lastStartTransformPos = *(Vector3*)(fieldsBaseAddress + 0x14);
-        updateDistance = *(float*)(fieldsBaseAddress + 0x20);
-        autoUpdate = *(bool*)(fieldsBaseAddress + 0x34);
-        skipUpdate = *(bool*)(fieldsBaseAddress + 0x35);
+        var fieldOffset = 0x40;
+        if (NativeHelpers.IsDebugBuild)
+            fieldOffset = 0x58;
+        return ref *(OffMeshLinkFields*)(offMeshLink + fieldOffset);
     }
 
-    private static Vector3 GetOffMeshLinkEndPointPosition(IntPtr transform)
+    internal static unsafe Vector3 GetOffMeshLinkEndPointPosition(NativeTransform* transform)
     {
-        if (transform == IntPtr.Zero)
+        if (transform == null)
             return Vector3.positiveInfinity;
-        return NativeFunctions.GetPosition(transform);
-    }
-
-    internal static unsafe void GetOffMeshLinkData(IntPtr offMeshLink, out bool autoUpdate, out bool skipUpdate, out float updateDistance, out Vector3 startPos, out Vector3 endPos, out Vector3 lastStartPos, out Vector3 lastEndPos)
-    {
-        GetOffMeshLinkFields(offMeshLink, out autoUpdate, out skipUpdate, out updateDistance, out var startTransformPtr, out var endTransformPtr, out lastStartPos, out lastEndPos);
-        startPos = GetOffMeshLinkEndPointPosition(startTransformPtr);
-        endPos = GetOffMeshLinkEndPointPosition(endTransformPtr);
+        return NativeFunctions.GetPosition((IntPtr)transform);
     }
 
     internal static unsafe bool OffMeshLinkWillUpdate(IntPtr offMeshLink)
     {
-        GetOffMeshLinkData(offMeshLink, out var autoUpdate, out var skipUpdate, out var updateDistance, out var startPos, out var endPos, out var lastStartPos, out var lastEndPos);
+        ref var fields = ref GetOffMeshLinkFields(offMeshLink);
+        var startTransform = fields.Start.Get();
+        var endTransform = fields.End.Get();
+        var startPos = GetOffMeshLinkEndPointPosition(startTransform);
+        var endPos = GetOffMeshLinkEndPointPosition(endTransform);
 
-        if (skipUpdate)
+        if (!fields.AutoUpdatePositions)
             return false;
-        if (!autoUpdate)
+        if (fields.NeedsInitialUpdate)
             return false;
 
-        var updateDistanceSqr = updateDistance * updateDistance;
-        if ((startPos - lastStartPos).sqrMagnitude > updateDistanceSqr)
+        var updateDistanceSqr = fields.AutoUpdateDistance * fields.AutoUpdateDistance;
+        if ((startPos - fields.LastStartPosition).sqrMagnitude > updateDistanceSqr)
             return true;
-        if ((endPos - lastEndPos).sqrMagnitude > updateDistanceSqr)
+        if ((endPos - fields.LastEndPosition).sqrMagnitude > updateDistanceSqr)
             return true;
 
         return false;
