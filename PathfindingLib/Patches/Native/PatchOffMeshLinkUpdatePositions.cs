@@ -32,7 +32,12 @@ internal static class PatchOffMeshLinkUpdatePositions
         original = detour.GenerateTrampoline<UpdatePositionsDelegate>();
     }
 
-    internal static void UpdateConnection(ref OffMeshConnection connection, Vector3 start, Vector3 end, Vector3 up, float costModifier, bool bidirectional, byte area, bool activated, int instanceID, int agentTypeID)
+    private static MinMaxAABB AABBFromPoints(Vector3 a, Vector3 b)
+    {
+        return new MinMaxAABB(Vector3.Min(a, b), Vector3.Max(a, b));
+    }
+
+    internal static void UpdateConnection(ref OffMeshConnection connection, Vector3 start, Vector3 end, Vector3 up, float width, float costModifier, bool bidirectional, byte area, bool activated, int instanceID, int agentTypeID)
     {
         connection.EndPointA.Pos = start;
         connection.EndPointB.Pos = end;
@@ -46,7 +51,7 @@ internal static class PatchOffMeshLinkUpdatePositions
         connection.AxisY = up;
         connection.AxisX = Vector3.Cross(connection.AxisY, forward);
         connection.AxisZ = Vector3.Cross(connection.AxisX, connection.AxisY);
-        connection.Width = 0;
+        connection.Width = width;
 
         if (costModifier < 0)
             costModifier = -1;
@@ -60,7 +65,17 @@ internal static class PatchOffMeshLinkUpdatePositions
         connection.UserID = instanceID;
         connection.AgentTypeID = agentTypeID;
 
-        connection.Bounds = new MinMaxAABB(Vector3.Min(start, end), Vector3.Max(start, end));
+        if (width > 0)
+        {
+            var axisXMagnitude = connection.AxisX.magnitude;
+            var extents = axisXMagnitude > 0.00001 ? connection.AxisX.normalized * (width * 0.5f) : Vector3.zero;
+            connection.Bounds = AABBFromPoints(connection.EndPointA.Pos - extents, connection.EndPointA.Pos + extents);
+            connection.Bounds.Encapsulate(AABBFromPoints(connection.EndPointB.Pos - extents, connection.EndPointB.Pos + extents));
+        }
+        else
+        {
+            connection.Bounds = new MinMaxAABB(Vector3.Min(start, end), Vector3.Max(start, end));
+        }
 
         // Unconnect doesn't seem to always remove the tile refs to allow the connection to update.
         connection.EndPointA.TileRef = 0;
@@ -121,7 +136,7 @@ internal static class PatchOffMeshLinkUpdatePositions
         var navMesh = NativeHelpers.GetNavMesh();
         PatchConnectUnconnectOffMeshConnection.UnconnectOffMeshConnection(navMesh, connectionIndex);
 
-        UpdateConnection(ref connection, startPos, endPos, Vector3.up, fields.CostOverride, fields.Bidirectional, (byte)fields.Area, fields.Activated, instanceID, fields.AgentTypeID);
+        UpdateConnection(ref connection, startPos, endPos, Vector3.up, width: 0, fields.CostOverride, fields.Bidirectional, (byte)fields.Area, fields.Activated, instanceID, fields.AgentTypeID);
 
         var extents = NativeFunctions.GetLinkQueryExtents(fields.AgentTypeID);
         PatchConnectUnconnectOffMeshConnection.ConnectOffMeshConnection(navMesh, connectionIndex, extents.x, extents.y);

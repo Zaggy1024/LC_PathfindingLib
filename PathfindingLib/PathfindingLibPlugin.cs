@@ -30,6 +30,7 @@ public class PathfindingLibPlugin : BaseUnityPlugin
         ApplyAllNativePatches();
 
         harmony.PatchAll(typeof(PatchNavMeshSurface));
+        harmony.PatchAll(typeof(PatchNavMeshLink));
         harmony.PatchAll(typeof(PatchEntranceTeleport));
         harmony.PatchAll(typeof(PatchMineshaftElevatorController));
 

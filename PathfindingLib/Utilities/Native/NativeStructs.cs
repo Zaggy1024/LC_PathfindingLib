@@ -26,6 +26,14 @@ internal struct NativeTransform
 {
 }
 
+[StructLayout(LayoutKind.Sequential)]
+internal struct NavMeshLinkRegistryEntry
+{
+    internal int UseCount;
+    internal uint Next;
+    internal ulong ConnectionID;
+}
+
 internal static class Methods
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

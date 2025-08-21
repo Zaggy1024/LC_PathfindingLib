@@ -109,4 +109,13 @@ public static class NativeNavMeshUtils
 
         return false;
     }
+
+    // See NavMeshManager::AddLink()
+    internal static unsafe ref FreeList<NavMeshLinkRegistryEntry> GetNavMeshLinkRegistry()
+    {
+        var offset = 0x80;
+        if (NativeHelpers.IsDebugBuild)
+            offset = 0x98;
+        return ref *(FreeList<NavMeshLinkRegistryEntry>*)(NativeHelpers.GetNavMeshManager() + offset);
+    }
 }
