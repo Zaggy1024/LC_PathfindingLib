@@ -69,11 +69,14 @@ internal static class PatchOffMeshLinkUpdatePositions
             return false;
 
         var connectionIndex = (uint)(fields.ConnectionID & 0xffff);
+        var connectionSalt = (uint)(fields.ConnectionID >> 48);
 
         ref var connectionsList = ref NativeHelpers.GetOffMeshConnectionFreeList();
         if (connectionIndex >= connectionsList.Capacity)
             return false;
         ref var connection = ref connectionsList.Elements[connectionIndex];
+        if (connection.Salt != (fields.ConnectionID >> 48))
+            return false;
 
         var startPos = NativeNavMeshUtils.GetOffMeshLinkEndPointPosition(startTransform);
         var endPos = NativeNavMeshUtils.GetOffMeshLinkEndPointPosition(endTransform);
