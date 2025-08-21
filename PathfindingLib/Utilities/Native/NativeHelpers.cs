@@ -40,25 +40,13 @@ internal static class NativeHelpers
         return *(IntPtr*)(manager + 0xA8);
     }
 
-    internal static unsafe IntPtr GetOffMeshConnectionFreeList()
+    internal static unsafe ref FreeList<OffMeshConnection> GetOffMeshConnectionFreeList()
     {
-        var navMesh = GetNavMesh();
-
-        if (navMesh == IntPtr.Zero)
-            return IntPtr.Zero;
-
+        var offset = 0x40;
         if (IsDebugBuild)
-            return navMesh + 0x48;
-        return navMesh + 0x40;
-    }
+            offset = 0x48;
 
-    internal static unsafe ref OffMeshConnection GetOffMeshConnection(IntPtr list, uint index)
-    {
-        ref var asList = ref *(FreeList<OffMeshConnection>*)list;
-        if (index >= asList.Capacity)
-            throw new IndexOutOfRangeException($"{index} is beyond the capacity of the off-mesh connection freelist {asList.Capacity}.");
-
-        return ref asList.Elements[index];
+        return ref *(FreeList<OffMeshConnection>*)(GetNavMesh() + offset);
     }
 
     internal static unsafe int GetInstanceID(IntPtr obj)

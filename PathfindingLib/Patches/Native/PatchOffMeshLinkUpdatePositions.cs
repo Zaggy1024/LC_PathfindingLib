@@ -40,16 +40,15 @@ internal static class PatchOffMeshLinkUpdatePositions
         // invalidated unnecessarily. Instead, if a connection already exists for this link, reuse
         // and update it.
 
+        if (NativeHelpers.GetNavMesh() == IntPtr.Zero)
+            return false;
+
         ref var fields = ref NativeNavMeshUtils.GetOffMeshLinkFields(offMeshLink);
 
         var instanceID = NativeHelpers.GetInstanceID(offMeshLink);
         var wrapper = NativeHelpers.GetOffMeshLinkWrapper(instanceID);
 
         if (wrapper == null)
-            return false;
-
-        var connectionsList = NativeHelpers.GetOffMeshConnectionFreeList();
-        if (connectionsList == IntPtr.Zero)
             return false;
 
         if (!wrapper.isActiveAndEnabled)
@@ -71,10 +70,13 @@ internal static class PatchOffMeshLinkUpdatePositions
 
         var connectionIndex = (uint)(fields.ConnectionID & 0xffff);
 
+        ref var connectionsList = ref NativeHelpers.GetOffMeshConnectionFreeList();
+        if (connectionIndex >= connectionsList.Capacity)
+            return false;
+        ref var connection = ref connectionsList.Elements[connectionIndex];
+
         var startPos = NativeNavMeshUtils.GetOffMeshLinkEndPointPosition(startTransform);
         var endPos = NativeNavMeshUtils.GetOffMeshLinkEndPointPosition(endTransform);
-
-        ref var connection = ref NativeHelpers.GetOffMeshConnection(connectionsList, connectionIndex);
 
         connection.EndPointA.Pos = startPos;
         connection.EndPointB.Pos = endPos;
