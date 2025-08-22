@@ -1,3 +1,6 @@
+## Version 2.2.1
+- Made `SmartPathTask.StartPathTask()` throw an exception if it is called with zero destinations. All path results will also throw exceptions if the task has not been started. This should help to avoid situations where `IsResultReady()` could always return false, blocking further navigation logic from ever running.
+
 ## Version 2.2.0
 - Added patches to prevent auto-updating OffMeshLinks and NavMeshLinks from causing stutter stepping when they move.
 - Made waiting for/in elevators not count towards the time spent walking towards a node in the smart search routine.
