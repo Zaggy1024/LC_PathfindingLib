@@ -1,3 +1,8 @@
+## Version 2.2.2
+- Fixed an exception that would occur when `SmartRoaming` is sending an enemy to a search node.
+- Added `SmartPathTask.IsStarted` to determine whether `StartPathTask()` has been called.
+- Ensured that `SmartRoaming` will not throw an exception if it runs out of nodes to search.
+
 ## Version 2.2.1
 - Made `SmartPathTask.StartPathTask()` throw an exception if it is called with zero destinations. All path results will also throw exceptions if the task has not been started. This should help to avoid situations where `IsResultReady()` could always return false, blocking further navigation logic from ever running.
 
