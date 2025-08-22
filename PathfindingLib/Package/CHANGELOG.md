@@ -1,3 +1,7 @@
+## Version 2.2.0
+- Added patches to prevent auto-updating OffMeshLinks and NavMeshLinks from causing stutter stepping when they move.
+- Made waiting for/in elevators not count towards the time spent walking towards a node in the smart search routine.
+
 ## Version 2.1.3
 - Corrected the search area when mapping path origins and destinations onto the navmesh to match `NavMesh.CalculatePath()`.
 
