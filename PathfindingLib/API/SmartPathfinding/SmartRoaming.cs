@@ -25,6 +25,10 @@ public static class SmartRoaming
         /// The amount of time that an agent is allowed to spend navigating to a single node in the search routine.
         /// </summary>
         public float timeToNavigateToCurrentDestination = 16f;
+        /// <summary>
+        /// Whether to count the time spent in smart link traversal towards <see cref="timeToNavigateToCurrentDestination"/>.
+        /// </summary>
+        public bool countLinkTraversalForNavigationTime = false;
     }
 
     public static void StartSmartSearch(this EnemyAI enemy, Vector3 startOfSearch, Config config, SmartTraversalFunction traversalFunction, AISearchRoutine? newSearch = null)
@@ -118,10 +122,22 @@ public static class SmartRoaming
             // Go to the selected node.
             enemy.currentSearch.unsearchedNodes.Remove(enemy.currentSearch.currentTargetNode);
 
+            var wasWaitingOnLink = false;
             void GoToCurrentDestination()
             {
-                if (currentNodePathTask.IsResultReady(0) && currentNodePathTask.GetResult(0) is SmartPathDestination destination)
-                    traversalFunction(enemy, in destination);
+                if (currentNodePathTask.IsResultReady(0))
+                {
+                    if (currentNodePathTask.GetResult(0) is SmartPathDestination destination)
+                    {
+                        traversalFunction(enemy, in destination);
+
+                        wasWaitingOnLink = destination.Type == SmartDestinationType.Elevator && enemy.agent.velocity.sqrMagnitude < 0.25f;
+                    }
+                    else
+                    {
+                        wasWaitingOnLink = false;
+                    }
+                }
                 currentNodePathTask.StartPathTask(enemy.agent, enemy.transform.position, enemy.currentSearch.currentTargetNode.transform.position, config.allowedLinks);
             }
             GoToCurrentDestination();
@@ -153,7 +169,8 @@ public static class SmartRoaming
             var checkTime = 0f;
             while (enemy.searchCoroutine != null && pathingTime >= 0)
             {
-                pathingTime -= Time.deltaTime;
+                if (config.countLinkTraversalForNavigationTime || !wasWaitingOnLink)
+                    pathingTime -= Time.deltaTime;
 
                 if (checkTime <= 0)
                 {
