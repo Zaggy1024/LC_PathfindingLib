@@ -67,6 +67,8 @@ public sealed class SmartPathTask : IDisposable
         jobHandle = job.ScheduleByRef();
     }
 
+    public bool IsStarted => jobData != null;
+
     private SmartPathJobDataContainer GetJobDataOrThrow()
     {
         if (jobData == null)

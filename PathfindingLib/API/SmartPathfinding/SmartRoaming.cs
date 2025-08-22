@@ -125,7 +125,7 @@ public static class SmartRoaming
             var wasWaitingOnLink = false;
             void GoToCurrentDestination()
             {
-                if (currentNodePathTask.IsResultReady(0))
+                if (currentNodePathTask.IsStarted && currentNodePathTask.IsResultReady(0))
                 {
                     if (currentNodePathTask.GetResult(0) is SmartPathDestination destination)
                     {
