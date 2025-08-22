@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace PathfindingLib.Utilities.Native;
 
-public static class NativeNavMeshUtils
+internal static class NativeNavMeshUtils
 {
     internal static unsafe bool CarvingHasDataToApply(IntPtr navMeshCarving)
     {
