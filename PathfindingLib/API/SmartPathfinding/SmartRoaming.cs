@@ -219,9 +219,27 @@ public static class SmartRoaming
         }
     }
 
+    private static void SetNextNode(this EnemyAI enemy, GameObject? node)
+    {
+        if (enemy.currentSearch.waitingForTargetNode)
+            enemy.currentSearch.currentTargetNode = node;
+        else
+            enemy.currentSearch.nextTargetNode = node;
+
+        enemy.currentSearch.choseTargetNode = true;
+        enemy.currentSearch.calculatingNodeInSearch = false;
+        enemy.chooseTargetNodeCoroutine = null;
+    }
+
     public static IEnumerator ChooseNextNodeInSmartSearchRoutine(this EnemyAI enemy, SmartPathfindingLinkFlags allowedLinks)
     {
         yield return null;
+
+        if (enemy.currentSearch.unsearchedNodes.Count == 0)
+        {
+            SetNextNode(enemy, null);
+            yield break;
+        }
 
         GameObject? chosenNode = null;
         var chosenNodeDistance = 500f;
@@ -292,13 +310,6 @@ public static class SmartRoaming
             }
         }
 
-        if (enemy.currentSearch.waitingForTargetNode)
-            enemy.currentSearch.currentTargetNode = chosenNode;
-        else
-            enemy.currentSearch.nextTargetNode = chosenNode;
-
-        enemy.currentSearch.choseTargetNode = true;
-        enemy.currentSearch.calculatingNodeInSearch = false;
-        enemy.chooseTargetNodeCoroutine = null;
+        enemy.SetNextNode(chosenNode);
     }
 }
