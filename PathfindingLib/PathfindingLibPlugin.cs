@@ -1,4 +1,5 @@
 using BepInEx;
+using BepInEx.Configuration;
 using BepInEx.Logging;
 using HarmonyLib;
 using UnityEngine;
@@ -23,16 +24,22 @@ public class PathfindingLibPlugin : BaseUnityPlugin
     internal static PathfindingLibPlugin Instance { get; private set; }
     internal new ManualLogSource Logger => base.Logger;
 
+    internal ConfigEntry<bool> PatchOffMeshConnectionStutterStepping;
+
     public void Awake()
     {
         Instance = this;
 
+        PatchOffMeshConnectionStutterStepping = Config.Bind("Vanilla Patches", "PatchOffMeshConnectionStutterStepping", true, "Whether to patch auto-updating OffMeshLinks and NavMeshLinks to avoid invalidating paths and causing AI to stutter-step.");
+
         ApplyAllNativePatches();
 
         harmony.PatchAll(typeof(PatchNavMeshSurface));
-        harmony.PatchAll(typeof(PatchNavMeshLink));
         harmony.PatchAll(typeof(PatchEntranceTeleport));
         harmony.PatchAll(typeof(PatchMineshaftElevatorController));
+
+        if (PatchOffMeshConnectionStutterStepping.Value)
+            ApplyOffMeshConnectionStutterSteppingPatches(harmony);
 
         var disposerObject = new GameObject("SmartPathTaskDisposer");
         DontDestroyOnLoad(disposerObject);
@@ -49,6 +56,12 @@ public class PathfindingLibPlugin : BaseUnityPlugin
         PatchConnectUnconnectOffMeshConnection.Apply();
         PatchApplyCarveResults.Apply();
         PatchNavMeshAgent.Apply();
+    }
+
+    private static void ApplyOffMeshConnectionStutterSteppingPatches(Harmony harmony)
+    {
+        harmony.PatchAll(typeof(PatchNavMeshLink));
+
         PatchOffMeshLinkUpdatePositions.Apply();
     }
 }
