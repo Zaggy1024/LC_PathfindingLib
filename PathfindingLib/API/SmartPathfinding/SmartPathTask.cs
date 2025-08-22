@@ -40,7 +40,7 @@ public sealed class SmartPathTask : IDisposable
         if (jobData != null && !IsComplete)
             return;
         if (destinations.Length == 0)
-            return;
+            throw new InvalidOperationException("Cannot start a SmartPathTask with no destinations.");
 
         SmartPathJobDataContainer.ReleaseJobData(ref jobData);
         jobData = SmartPathJobDataContainer.GetJobData(agent, origin, destinations, allowedLinks);
@@ -53,7 +53,7 @@ public sealed class SmartPathTask : IDisposable
         if (jobData != null && !IsComplete)
             return;
         if (destinations.Count == 0)
-            return;
+            throw new InvalidOperationException("Cannot start a SmartPathTask with no destinations.");
 
         SmartPathJobDataContainer.ReleaseJobData(ref jobData);
         jobData = SmartPathJobDataContainer.GetJobData(agent, origin, destinations, allowedLinks);
@@ -67,30 +67,35 @@ public sealed class SmartPathTask : IDisposable
         jobHandle = job.ScheduleByRef();
     }
 
-    public Vector3 Origin => jobData!.pathStart;
+    private SmartPathJobDataContainer GetJobDataOrThrow()
+    {
+        if (jobData == null)
+            throw new InvalidOperationException("Task has not been started.");
+        return jobData;
+    }
+
+    public Vector3 Origin => GetJobDataOrThrow().pathStart;
 
     public bool IsResultReady(int index)
     {
-        if (jobData == null)
-            return false;
+        var jobData = GetJobDataOrThrow();
         if (index < 0)
             throw new IndexOutOfRangeException("Index cannot be negative.");
-        if (index >= jobData!.pathGoalCount)
-            throw new IndexOutOfRangeException($"Index {index} is larger than destination count {jobData!.pathGoalCount}.");
+        if (index >= jobData.pathGoalCount)
+            throw new IndexOutOfRangeException($"Index {index} is larger than destination count {jobData.pathGoalCount}.");
 
         return job.results[index].linkIndex != SmartPathfindingJob.PlaceholderLinkIndex;
     }
 
-    public bool IsComplete => IsResultReady(jobData!.pathGoalCount - 1) && jobHandle.IsCompleted;
+    public bool IsComplete => IsResultReady(GetJobDataOrThrow().pathGoalCount - 1) && jobHandle.IsCompleted;
 
     public bool PathSucceeded(int index)
     {
-        if (jobData == null)
-            throw new InvalidOperationException("Job has not been started.");
+        var jobData = GetJobDataOrThrow();
         if (index < 0)
             throw new IndexOutOfRangeException("Index cannot be negative.");
-        if (index >= jobData!.pathGoalCount)
-            throw new IndexOutOfRangeException($"Index {index} is larger than destination count {jobData!.pathGoalCount}.");
+        if (index >= jobData.pathGoalCount)
+            throw new IndexOutOfRangeException($"Index {index} is larger than destination count {jobData.pathGoalCount}.");
 
         ref var result = ref job.results.GetRef(index);
 
@@ -104,12 +109,11 @@ public sealed class SmartPathTask : IDisposable
 
     public float GetPathLength(int index)
     {
-        if (jobData == null)
-            throw new InvalidOperationException("Job has not been started.");
+        var jobData = GetJobDataOrThrow();
         if (index < 0)
             throw new IndexOutOfRangeException("Index cannot be negative.");
-        if (index >= jobData!.pathGoalCount)
-            throw new IndexOutOfRangeException($"Index {index} is larger than destination count {jobData!.pathGoalCount}.");
+        if (index >= jobData.pathGoalCount)
+            throw new IndexOutOfRangeException($"Index {index} is larger than destination count {jobData.pathGoalCount}.");
 
         ref var result = ref job.results.GetRef(index);
 
@@ -123,12 +127,11 @@ public sealed class SmartPathTask : IDisposable
 
     public SmartPathDestination? GetResult(int index)
     {
-        if (jobData == null)
-            throw new InvalidOperationException("Job has not been started.");
+        var jobData = GetJobDataOrThrow();
         if (index < 0)
             throw new IndexOutOfRangeException("Index cannot be negative.");
-        if (index >= jobData!.pathGoalCount)
-            throw new IndexOutOfRangeException($"Index {index} is larger than destination count {jobData!.pathGoalCount}.");
+        if (index >= jobData.pathGoalCount)
+            throw new IndexOutOfRangeException($"Index {index} is larger than destination count {jobData.pathGoalCount}.");
 
         ref var result = ref job.results.GetRef(index);
 
