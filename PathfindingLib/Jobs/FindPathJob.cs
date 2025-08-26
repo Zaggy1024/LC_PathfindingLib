@@ -10,6 +10,7 @@ using UnityEngine.Experimental.AI;
 
 using PathfindingLib.Utilities;
 using PathfindingLib.API;
+using PathfindingLib.Utilities.Collections;
 
 #if BENCHMARKING
 using Unity.Profiling;
@@ -23,6 +24,7 @@ public struct FindPathJob : IJob, IDisposable
 
     [ReadOnly] private int AgentTypeID;
     [ReadOnly] private int AreaMask;
+    [ReadOnly] private NativeArray<float> Costs;
     [ReadOnly] private Vector3 QueryExtents;
     [ReadOnly] private Vector3 Origin;
     [ReadOnly] private Vector3 Destination;
@@ -55,16 +57,16 @@ public struct FindPathJob : IJob, IDisposable
     {
         ThreadQueriesRef = PathfindingJobSharedResources.GetPerThreadQueriesArray();
 
-        AgentTypeID = agent.agentTypeID;
-        AreaMask = agent.areaMask;
+        CreateArrays();
+
+        agent.GetQueryFilter(out AgentTypeID, out AreaMask, out var costsSpan);
+        Costs.CopyFrom(costsSpan);
         QueryExtents = NavMeshQueryUtils.GetQueryExtents(AgentTypeID);
         Origin = origin;
         Destination = destination;
 
         // Shhhh, compiler...
         ThreadIndex = -1;
-
-        CreateArrays();
 
         Status[0] = PathQueryStatus.InProgress;
         PathLength[0] = float.MaxValue;
@@ -75,8 +77,10 @@ public struct FindPathJob : IJob, IDisposable
         if (Status.Length == 1)
             return;
 
-        Status = new NativeArray<PathQueryStatus>(1, Allocator.Persistent);
-        PathLength = new NativeArray<float>(1, Allocator.Persistent);
+        Costs = new(32, Allocator.Persistent);
+
+        Status = new(1, Allocator.Persistent);
+        PathLength = new(1, Allocator.Persistent);
     }
 
     private void DisposeArrays()
@@ -115,7 +119,7 @@ public struct FindPathJob : IJob, IDisposable
             return;
         }
 
-        var status = query.BeginFindPath(origin, destinationLocation, AreaMask);
+        var status = query.BeginFindPath(origin, destinationLocation, AreaMask, Costs);
         if (status.GetResult() == PathQueryStatus.Failure)
         {
             Status[0] = PathQueryStatus.Failure;

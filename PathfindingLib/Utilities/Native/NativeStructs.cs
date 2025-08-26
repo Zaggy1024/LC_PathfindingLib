@@ -26,6 +26,14 @@ internal struct NativeTransform
 {
 }
 
+[StructLayout(LayoutKind.Explicit)]
+internal struct QueryFilter
+{
+    [FieldOffset(0x00)] internal float CostsStart;
+    [FieldOffset(0x80)] internal uint AreaMask;
+    [FieldOffset(0x84)] internal uint AgentType;
+}
+
 [StructLayout(LayoutKind.Sequential)]
 internal struct NavMeshLinkRegistryEntry
 {

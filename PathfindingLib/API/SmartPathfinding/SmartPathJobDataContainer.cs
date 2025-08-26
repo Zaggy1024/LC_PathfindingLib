@@ -8,6 +8,7 @@ using UnityEngine.Pool;
 
 using PathfindingLib.Jobs;
 using PathfindingLib.Data;
+using PathfindingLib.Utilities;
 using PathfindingLib.Utilities.Collections;
 
 namespace PathfindingLib.API.SmartPathfinding;
@@ -69,6 +70,7 @@ internal sealed class SmartPathJobDataContainer : IDisposable
 
     internal int agentTypeID;
     internal int areaMask;
+    internal NativeArray<float> areaCosts;
 
     internal Vector3 pathStart;
     internal NativeArray<Vector3> pathGoals;
@@ -121,8 +123,11 @@ internal sealed class SmartPathJobDataContainer : IDisposable
         if (destinationCount <= 0)
             throw new ArgumentOutOfRangeException($"{nameof(destinationCount)} must be larger than zero.");
 
-        agentTypeID = agent.agentTypeID;
-        areaMask = agent.areaMask;
+        if (areaCosts.Length != 32)
+            areaCosts = new(32, Allocator.Persistent);
+
+        agent.GetQueryFilter(out agentTypeID, out areaMask, out var areaCostsSpan);
+        areaCosts.CopyFrom(areaCostsSpan);
 
         pathStart = origin;
 
@@ -270,6 +275,8 @@ internal sealed class SmartPathJobDataContainer : IDisposable
 
     private void Clear()
     {
+        areaCosts.SetAllElements(1f);
+
         pathGoals.SetAllElements(default);
         pathResults.SetAllElements(default);
 
@@ -289,6 +296,8 @@ internal sealed class SmartPathJobDataContainer : IDisposable
 
     public void Dispose()
     {
+        areaCosts.Dispose();
+
         pathGoals.Dispose();
         pathResults.Dispose();
 

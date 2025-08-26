@@ -1,6 +1,7 @@
 using System;
 
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 
 namespace PathfindingLib.Utilities.Collections;
 
@@ -25,5 +26,12 @@ internal static class NativeArrayExtensions
             for (var i = 0; i < count; i++)
                 ptr[i] = value;
         }
+    }
+
+    internal static unsafe void CopyFrom<T>(this NativeArray<T> to, Span<T> from) where T : struct
+    {
+        if (from.Length == 0)
+            return;
+        UnsafeUtility.MemCpy(to.GetUnsafePtr(), UnsafeUtility.AddressOf(ref from[0]), from.Length);
     }
 }

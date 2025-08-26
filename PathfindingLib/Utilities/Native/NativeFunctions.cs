@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.InteropServices;
 
 using UnityEngine;
@@ -15,6 +15,7 @@ internal static class NativeFunctions
         SetUpGetQueryExtents();
         SetUpGetLinkQueryExtents();
         SetUpGetCrowdAgent();
+        SetUpGetAgentQueryFilter();
     }
 
     // Delegate for Component::GetName()
@@ -166,5 +167,34 @@ internal static class NativeFunctions
         if (internalAgent == IntPtr.Zero)
             return Vector3.positiveInfinity;
         return *(Vector3*)internalAgent;
+    }
+
+    // Get QueryFilter from NavMeshAgent:
+    // Delegate for debug-only method CrowdManager::GetAgentFilter(ulong id)
+    [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
+    private unsafe delegate QueryFilter* GetAgentFilterDelegate(IntPtr crowdManager, ulong id);
+
+    private static GetAgentFilterDelegate GetAgentFilterMethod;
+
+    // Delegate for release-only method NavMeshAgent::GetFilter()
+    [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
+    private unsafe delegate QueryFilter* GetFilterDelegate(IntPtr agent);
+
+    private static GetFilterDelegate GetFilterMethod;
+
+    private static void SetUpGetAgentQueryFilter()
+    {
+        if (NativeHelpers.IsDebugBuild)
+            GetAgentFilterMethod = Marshal.GetDelegateForFunctionPointer<GetAgentFilterDelegate>(NativeHelpers.BaseAddress + 0x129CE20);
+        else
+            GetFilterMethod = Marshal.GetDelegateForFunctionPointer<GetFilterDelegate>(NativeHelpers.BaseAddress + 0xA39E50);
+    }
+
+    internal static unsafe QueryFilter* GetAgentQueryFilter(IntPtr agent)
+    {
+        if (GetFilterMethod != null)
+            return GetFilterMethod(agent);
+
+        return GetAgentFilterMethod(NativeHelpers.GetCrowdManager(), NativeHelpers.GetAgentID(agent));
     }
 }

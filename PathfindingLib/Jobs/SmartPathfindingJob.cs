@@ -57,6 +57,7 @@ internal struct SmartPathfindingJob : IJob
 
     [ReadOnly] private int agentTypeID;
     [ReadOnly] private int areaMask;
+    [ReadOnly] private NativeArray<float> areaCosts;
     [ReadOnly] private Vector3 queryExtents;
     [ReadOnly] private Vector3 start;
     [ReadOnly, NativeDisableParallelForRestriction] private NativeArray<Vector3> goals;
@@ -91,6 +92,7 @@ internal struct SmartPathfindingJob : IJob
 
         agentTypeID = data.agentTypeID;
         areaMask = data.areaMask;
+        areaCosts = data.areaCosts;
         queryExtents = NavMeshQueryUtils.GetQueryExtents(agentTypeID);
 
         start = data.pathStart;
@@ -151,7 +153,7 @@ internal struct SmartPathfindingJob : IJob
         if (!query.IsValid(destinationLocation))
             return float.PositiveInfinity;
 
-        var status = query.BeginFindPath(startLocation, destinationLocation, areaMask);
+        var status = query.BeginFindPath(startLocation, destinationLocation, areaMask, areaCosts);
         if (status.GetResult() == PathQueryStatus.Failure)
             return float.PositiveInfinity;
 
