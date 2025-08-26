@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.AI;
 
+using PathfindingLib.Utilities.Native;
+
 namespace PathfindingLib.Utilities;
 
 public static class AgentExtensions
@@ -16,9 +18,9 @@ public static class AgentExtensions
     /// <returns>The position at which the path should originate.</returns>
     public static Vector3 GetPathOrigin(this NavMeshAgent agent)
     {
-        if (agent.isOnOffMeshLink)
-            return agent.currentOffMeshLinkData.endPos;
-
-        return agent.transform.position;
+        var ptr = agent.GetCachedPtr();
+        if (ptr == null)
+            return agent.transform.position;
+        return NativeFunctions.GetAgentPosition(ptr);
     }
 }

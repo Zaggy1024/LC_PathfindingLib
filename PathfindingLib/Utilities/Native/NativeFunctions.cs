@@ -14,6 +14,7 @@ internal static class NativeFunctions
         SetUpGetPosition();
         SetUpGetQueryExtents();
         SetUpGetLinkQueryExtents();
+        SetUpGetCrowdAgent();
     }
 
     // Delegate for Component::GetName()
@@ -128,5 +129,42 @@ internal static class NativeFunctions
         var result = Vector3.zero;
         getLinkQueryExtentsMethod(NativeHelpers.GetNavMeshManager(), &result, agentTypeID);
         return result;
+    }
+
+    // Get CrowdAgent from NavMeshAgent:
+    // Delegate for debug-only method CrowdManager::GetAgentByRef(ulong id)
+    [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
+    private unsafe delegate IntPtr GetAgentByRefDelegate(IntPtr crowdManager, ulong id);
+
+    private static GetAgentByRefDelegate GetAgentByRefMethod;
+
+    // Delegate for release-only method NavMeshAgent::GetInternalAgent()
+    [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
+    private unsafe delegate IntPtr GetInternalAgentDelegate(IntPtr agent);
+
+    private static GetInternalAgentDelegate GetInternalAgentMethod;
+
+    private static void SetUpGetCrowdAgent()
+    {
+        if (NativeHelpers.IsDebugBuild)
+            GetAgentByRefMethod = Marshal.GetDelegateForFunctionPointer<GetAgentByRefDelegate>(NativeHelpers.BaseAddress + 0x129CDD0);
+        else
+            GetInternalAgentMethod = Marshal.GetDelegateForFunctionPointer<GetInternalAgentDelegate>(NativeHelpers.BaseAddress + 0xA39EE0);
+    }
+
+    private static unsafe IntPtr GetCrowdAgent(IntPtr agent)
+    {
+        if (GetInternalAgentMethod != null)
+            return GetInternalAgentMethod(agent);
+
+        return GetAgentByRefMethod(NativeHelpers.GetCrowdManager(), NativeHelpers.GetAgentID(agent));
+    }
+
+    internal static unsafe Vector3 GetAgentPosition(IntPtr agent)
+    {
+        var internalAgent = GetCrowdAgent(agent);
+        if (internalAgent == IntPtr.Zero)
+            return Vector3.positiveInfinity;
+        return *(Vector3*)internalAgent;
     }
 }

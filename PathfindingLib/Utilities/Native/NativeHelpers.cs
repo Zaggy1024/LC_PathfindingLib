@@ -40,6 +40,14 @@ internal static class NativeHelpers
         return *(IntPtr*)(manager + 0xA8);
     }
 
+    internal static unsafe IntPtr GetCrowdManager()
+    {
+        var manager = GetNavMeshManager();
+        if (IsDebugBuild)
+            return *(IntPtr*)(manager + 0xA8);
+        return *(IntPtr*)(manager + 0x90);
+    }
+
     internal static unsafe ref FreeList<OffMeshConnection> GetOffMeshConnectionFreeList()
     {
         var offset = 0x40;
@@ -60,5 +68,13 @@ internal static class NativeHelpers
     internal static OffMeshLink GetOffMeshLinkWrapper(int instanceID)
     {
         return OffMeshLinkData.GetOffMeshLinkInternal(instanceID);
+    }
+
+    internal static unsafe ulong GetAgentID(IntPtr agent)
+    {
+        var offset = 0x60;
+        if (IsDebugBuild)
+            offset = 0x78;
+        return *(ulong*)(agent + offset);
     }
 }
