@@ -1,3 +1,7 @@
+## Version 2.3.0
+- Changed `AgentExtensions.GetPathOrigin()` to get the path origin for `NavMeshAgent`s more accurately. This will avoid issues with pathfinding on agents with a non-zero `baseOffset`, such as the [Soul Devourer](https://thunderstore.io/c/lethal-company/p/bcs4313/Soul_Devourer_Enemy/) enemy.
+- Added the `AgentExtensions.GetQueryFilter()` method to retrieve an agent's type ID, area mask, and cost overrides in one call. Previously, the cost overrides were largely unusable due to requiring 32 individual calls to `NavMeshAgent.GetAreaCost()`.
+
 ## Version 2.2.2
 - Fixed an exception that would occur when `SmartRoaming` is sending an enemy to a search node.
 - Added `SmartPathTask.IsStarted` to determine whether `StartPathTask()` has been called.
