@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 
 using UnityEngine;
@@ -137,28 +137,28 @@ internal static class NativeFunctions
     [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
     private unsafe delegate IntPtr GetAgentByRefDelegate(IntPtr crowdManager, ulong id);
 
-    private static GetAgentByRefDelegate GetAgentByRefMethod;
+    private static GetAgentByRefDelegate getAgentByRefMethod;
 
     // Delegate for release-only method NavMeshAgent::GetInternalAgent()
     [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
     private unsafe delegate IntPtr GetInternalAgentDelegate(IntPtr agent);
 
-    private static GetInternalAgentDelegate GetInternalAgentMethod;
+    private static GetInternalAgentDelegate getInternalAgentMethod;
 
     private static void SetUpGetCrowdAgent()
     {
         if (NativeHelpers.IsDebugBuild)
-            GetAgentByRefMethod = Marshal.GetDelegateForFunctionPointer<GetAgentByRefDelegate>(NativeHelpers.BaseAddress + 0x129CDD0);
+            getAgentByRefMethod = Marshal.GetDelegateForFunctionPointer<GetAgentByRefDelegate>(NativeHelpers.BaseAddress + 0x129CDD0);
         else
-            GetInternalAgentMethod = Marshal.GetDelegateForFunctionPointer<GetInternalAgentDelegate>(NativeHelpers.BaseAddress + 0xA39EE0);
+            getInternalAgentMethod = Marshal.GetDelegateForFunctionPointer<GetInternalAgentDelegate>(NativeHelpers.BaseAddress + 0xA39EE0);
     }
 
     private static unsafe IntPtr GetCrowdAgent(IntPtr agent)
     {
-        if (GetInternalAgentMethod != null)
-            return GetInternalAgentMethod(agent);
+        if (getInternalAgentMethod != null)
+            return getInternalAgentMethod(agent);
 
-        return GetAgentByRefMethod(NativeHelpers.GetCrowdManager(), NativeHelpers.GetAgentID(agent));
+        return getAgentByRefMethod(NativeHelpers.GetCrowdManager(), NativeHelpers.GetAgentID(agent));
     }
 
     internal static unsafe Vector3 GetAgentPosition(IntPtr agent)
@@ -174,27 +174,27 @@ internal static class NativeFunctions
     [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
     private unsafe delegate QueryFilter* GetAgentFilterDelegate(IntPtr crowdManager, ulong id);
 
-    private static GetAgentFilterDelegate GetAgentFilterMethod;
+    private static GetAgentFilterDelegate getAgentFilterMethod;
 
     // Delegate for release-only method NavMeshAgent::GetFilter()
     [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
     private unsafe delegate QueryFilter* GetFilterDelegate(IntPtr agent);
 
-    private static GetFilterDelegate GetFilterMethod;
+    private static GetFilterDelegate getFilterMethod;
 
     private static void SetUpGetAgentQueryFilter()
     {
         if (NativeHelpers.IsDebugBuild)
-            GetAgentFilterMethod = Marshal.GetDelegateForFunctionPointer<GetAgentFilterDelegate>(NativeHelpers.BaseAddress + 0x129CE20);
+            getAgentFilterMethod = Marshal.GetDelegateForFunctionPointer<GetAgentFilterDelegate>(NativeHelpers.BaseAddress + 0x129CE20);
         else
-            GetFilterMethod = Marshal.GetDelegateForFunctionPointer<GetFilterDelegate>(NativeHelpers.BaseAddress + 0xA39E50);
+            getFilterMethod = Marshal.GetDelegateForFunctionPointer<GetFilterDelegate>(NativeHelpers.BaseAddress + 0xA39E50);
     }
 
     internal static unsafe QueryFilter* GetAgentQueryFilter(IntPtr agent)
     {
-        if (GetFilterMethod != null)
-            return GetFilterMethod(agent);
+        if (getFilterMethod != null)
+            return getFilterMethod(agent);
 
-        return GetAgentFilterMethod(NativeHelpers.GetCrowdManager(), NativeHelpers.GetAgentID(agent));
+        return getAgentFilterMethod(NativeHelpers.GetCrowdManager(), NativeHelpers.GetAgentID(agent));
     }
 }
