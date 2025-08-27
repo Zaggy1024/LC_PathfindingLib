@@ -10,6 +10,7 @@ namespace PathfindingLib.API.SmartPathfinding;
 
 public static class SmartPathfinding
 {
+    public const string NonSmartAgentOffMeshLinkAreaName = "NonSmartAgent";
     public const int NonSmartAgentOffMeshLinkAreaIndex = 25;
     public const int NonSmartAgentOffMeshLinkAreaMask = 1 << NonSmartAgentOffMeshLinkAreaIndex;
 

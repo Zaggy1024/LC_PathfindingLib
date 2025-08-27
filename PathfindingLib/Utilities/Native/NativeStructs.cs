@@ -42,6 +42,16 @@ internal struct NavMeshLinkRegistryEntry
     internal ulong ConnectionID;
 }
 
+[StructLayout(LayoutKind.Explicit)]
+internal unsafe struct BasicStringFields
+{
+    [FieldOffset(0x00)] internal byte* Data;
+    [FieldOffset(0x08)] internal ulong Capacity;
+    [FieldOffset(0x10)] internal ulong Length;
+    [FieldOffset(0x18)] internal byte ShortStringUnusedBytes;
+    [FieldOffset(0x20)] internal bool IsShortString;
+}
+
 internal static class Methods
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

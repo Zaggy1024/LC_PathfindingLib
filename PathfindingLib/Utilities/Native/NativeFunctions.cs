@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.InteropServices;
 
 using UnityEngine;
@@ -16,6 +16,7 @@ internal static class NativeFunctions
         SetUpGetLinkQueryExtents();
         SetUpGetCrowdAgent();
         SetUpGetAgentQueryFilter();
+        SetUpGrowString();
     }
 
     // Delegate for Component::GetName()
@@ -196,5 +197,26 @@ internal static class NativeFunctions
             return getFilterMethod(agent);
 
         return getAgentFilterMethod(NativeHelpers.GetCrowdManager(), NativeHelpers.GetAgentID(agent));
+    }
+
+    // Delegate for core::StringStorageDefault<char>::grow()
+    [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
+    private unsafe delegate char* GrowStringDelegate(IntPtr str, ulong size);
+
+    private static GrowStringDelegate growStringMethod;
+
+    private static void SetUpGrowString()
+    {
+        var functionOffset = 0x15AFF0;
+        if (NativeHelpers.IsDebugBuild)
+            functionOffset = 0x22B9D0;
+        var functionAddress = NativeHelpers.BaseAddress + functionOffset;
+
+        growStringMethod = Marshal.GetDelegateForFunctionPointer<GrowStringDelegate>(functionAddress);
+    }
+
+    internal static unsafe char* GrowString(IntPtr str, ulong size)
+    {
+        return growStringMethod(str, size);
     }
 }

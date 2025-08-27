@@ -13,6 +13,7 @@ internal static class PatchNavMeshAgent
     internal static void Apply()
     {
         HookAwakeFromLoad();
+        NativeHelpers.SetAreaName(SmartPathfinding.NonSmartAgentOffMeshLinkAreaIndex, SmartPathfinding.NonSmartAgentOffMeshLinkAreaName);
     }
 
     // Detour for NavMeshAgent::AwakeFromLoad()
