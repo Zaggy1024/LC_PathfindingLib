@@ -298,7 +298,11 @@ public static class SmartRoaming
                 continue;
             }
 
-            var pathDistance = pathsFromSearchStart != null ? pathsFromSearchStart.GetPathLength(i) : pathsFromEnemyTask.GetPathLength(i);
+            var pathDistance = 0f;
+            if (pathsFromSearchStart == null)
+                pathDistance = pathsFromEnemyTask.GetPathLength(i);
+            else if (pathsFromSearchStart.PathSucceeded(i))
+                pathDistance = pathsFromSearchStart.GetPathLength(i);
 
             if (pathDistance < chosenNodeDistance && (!enemy.currentSearch.randomized || chosenNode == null || enemy.searchRoutineRandom.Next(0, 100) < 65))
             {
