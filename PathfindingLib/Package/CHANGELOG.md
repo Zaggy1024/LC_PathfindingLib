@@ -1,3 +1,8 @@
+## Version 2.3.1
+- Made SmartRoaming use `AgentExtensions.GetPathOrigin()` to determine the start point of its paths.
+- Fixed an exception that could occur in `SmartRoaming` if a path from an agent succeeds, while a path from the search start point fails.
+- Set the non-smart agent navmesh area type name so that `NavMesh.GetAreaFromName("NonSmartAgent")` returns 25.
+
 ## Version 2.3.0
 - Changed `AgentExtensions.GetPathOrigin()` to get the path origin for `NavMeshAgent`s more accurately. This will avoid issues with pathfinding on agents with a non-zero `baseOffset`, such as the [Soul Devourer](https://thunderstore.io/c/lethal-company/p/bcs4313/Soul_Devourer_Enemy/) enemy.
 - Added the `AgentExtensions.GetQueryFilter()` method to retrieve an agent's type ID, area mask, and cost overrides in one call. Previously, the cost overrides were largely unusable due to requiring 32 individual calls to `NavMeshAgent.GetAreaCost()`.
