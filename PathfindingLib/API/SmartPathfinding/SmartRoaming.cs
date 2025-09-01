@@ -3,6 +3,8 @@ using System.Collections.Generic;
 
 using UnityEngine;
 
+using PathfindingLib.Utilities;
+
 namespace PathfindingLib.API.SmartPathfinding;
 
 #nullable enable
@@ -138,7 +140,7 @@ public static class SmartRoaming
                         wasWaitingOnLink = false;
                     }
                 }
-                currentNodePathTask.StartPathTask(enemy.agent, enemy.transform.position, enemy.currentSearch.currentTargetNode.transform.position, config.allowedLinks);
+                currentNodePathTask.StartPathTask(enemy.agent, enemy.agent.GetPathOrigin(), enemy.currentSearch.currentTargetNode.transform.position, config.allowedLinks);
             }
             GoToCurrentDestination();
 
@@ -251,7 +253,7 @@ public static class SmartRoaming
 
         // Start a task to calculate paths from the enemy to each node.
         var pathsFromEnemyTask = new SmartPathTask();
-        pathsFromEnemyTask.StartPathTask(enemy.agent, enemy.transform.position, unsearchedNodePositions, allowedLinks);
+        pathsFromEnemyTask.StartPathTask(enemy.agent, enemy.agent.GetPathOrigin(), unsearchedNodePositions, allowedLinks);
 
         // Start a task to calculate paths from the search origin to each node if necessary.
         var pathsFromSearchStart = !enemy.currentSearch.startedSearchAtSelf ? new SmartPathTask() : null;
