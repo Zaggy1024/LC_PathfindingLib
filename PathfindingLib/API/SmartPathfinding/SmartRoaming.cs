@@ -300,7 +300,7 @@ public static class SmartRoaming
                 continue;
             }
 
-            var pathDistance = 0f;
+            var pathDistance = float.PositiveInfinity;
             if (pathsFromSearchStart == null)
                 pathDistance = pathsFromEnemyTask.GetPathLength(i);
             else if (pathsFromSearchStart.PathSucceeded(i))
