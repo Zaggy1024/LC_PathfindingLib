@@ -1,3 +1,6 @@
+## Version 2.3.2
+- Prevented an exception in `SmartRoaming` if the agent is not on the navmesh.
+
 ## Version 2.3.1
 - Made SmartRoaming use `AgentExtensions.GetPathOrigin()` to determine the start point of its paths.
 - Fixed an exception that could occur in `SmartRoaming` if a path from an agent succeeds, while a path from the search start point fails.
