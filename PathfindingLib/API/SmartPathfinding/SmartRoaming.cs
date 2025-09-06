@@ -288,9 +288,10 @@ public static class SmartRoaming
                 continue;
             }
 
-            if (enemy.agent.isOnNavMesh && !pathsFromEnemyTask.PathSucceeded(i))
+            if (!pathsFromEnemyTask.PathSucceeded(i))
             {
-                enemy.EliminateNodeFromSearch(i);
+                if (enemy.agent.isOnNavMesh)
+                    enemy.EliminateNodeFromSearch(i);
                 continue;
             }
 
