@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 
 using MonoMod.RuntimeDetour;
 using UnityEngine;
+using UnityEngine.AI;
 using Unity.Mathematics.Geometry;
 
 using PathfindingLib.Utilities.Native;
@@ -94,9 +95,8 @@ internal static class PatchOffMeshLinkUpdatePositions
             return false;
 
         ref var fields = ref NativeNavMeshUtils.GetOffMeshLinkFields(offMeshLink);
-
+        var wrapper = NativeFunctions.ScriptingWrapperFor<OffMeshLink>(offMeshLink);
         var instanceID = NativeHelpers.GetInstanceID(offMeshLink);
-        var wrapper = NativeHelpers.GetOffMeshLinkWrapper(instanceID);
 
         if (wrapper == null)
             return false;

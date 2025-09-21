@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Text;
 
 using Unity.Collections.LowLevel.Unsafe;
-using UnityEngine.AI;
 
 namespace PathfindingLib.Utilities.Native;
 
@@ -88,11 +87,6 @@ internal static class NativeHelpers
         if (offset == -1)
             offset = UnityEngine.Object.GetOffsetOfInstanceIDInCPlusPlusObject();
         return *(int*)(obj + offset);
-    }
-
-    internal static OffMeshLink GetOffMeshLinkWrapper(int instanceID)
-    {
-        return OffMeshLinkData.GetOffMeshLinkInternal(instanceID);
     }
 
     internal static unsafe ulong GetAgentID(IntPtr agent)

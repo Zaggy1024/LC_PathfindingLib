@@ -17,6 +17,7 @@ internal static class NativeFunctions
         SetUpGetCrowdAgent();
         SetUpGetAgentQueryFilter();
         SetUpGrowString();
+        SetUpScriptingWrapperFor();
     }
 
     // Delegate for Component::GetName()
@@ -218,5 +219,30 @@ internal static class NativeFunctions
     internal static unsafe char* GrowString(IntPtr str, ulong size)
     {
         return growStringMethod(str, size);
+    }
+
+    // Delegate for Scripting::ScriptingWrapperFor()
+    [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
+    private unsafe delegate IntPtr* ScriptingWrapperForDelegate(IntPtr* result, IntPtr nativeObj);
+
+    private static ScriptingWrapperForDelegate scriptingWrapperForMethod;
+
+    private static void SetUpScriptingWrapperFor()
+    {
+        var functionOffset = 0x777120;
+        if (NativeHelpers.IsDebugBuild)
+            functionOffset = 0xFD6800;
+        var functionAddress = NativeHelpers.BaseAddress + functionOffset;
+
+        scriptingWrapperForMethod = Marshal.GetDelegateForFunctionPointer<ScriptingWrapperForDelegate>(functionAddress);
+    }
+
+    internal static unsafe T ScriptingWrapperFor<T>(IntPtr nativeObj)
+    {
+        IntPtr pointer = IntPtr.Zero;
+        IntPtr* result = scriptingWrapperForMethod(&pointer, nativeObj);
+#pragma warning disable CS8500
+        return *(T*)result;
+#pragma warning restore CS8500
     }
 }
