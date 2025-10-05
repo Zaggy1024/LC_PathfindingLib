@@ -1,3 +1,6 @@
+## Version 2.4.0
+- Updated native hooks to support Unity 2022.3.62f2 (Lethal Company v73). This breaks compatibility with previous versions.
+
 ## Version 2.3.2
 - Prevented an exception in `SmartRoaming` if the agent is not on the navmesh.
 
