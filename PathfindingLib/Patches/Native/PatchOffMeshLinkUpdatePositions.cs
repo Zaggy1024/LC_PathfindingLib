@@ -22,9 +22,9 @@ internal static class PatchOffMeshLinkUpdatePositions
 
     internal static void Apply()
     {
-        var functionOffset = 0xA3E2E0;
+        var functionOffset = 0xA61670;
         if (NativeHelpers.IsDebugBuild)
-            functionOffset = 0x1297D30;
+            functionOffset = 0x12E2BB0;
         var functionAddress = NativeHelpers.BaseAddress + functionOffset;
 
         var hookPtr = Marshal.GetFunctionPointerForDelegate<UpdatePositionsDelegate>(UpdatePositionsDetour);

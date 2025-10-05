@@ -28,9 +28,9 @@ internal static class NativeFunctions
 
     private static void SetUpGetName()
     {
-        var functionOffset = 0x3714F0;
+        var functionOffset = 0x376D30;
         if (NativeHelpers.IsDebugBuild)
-            functionOffset = 0x540F00;
+            functionOffset = 0x54D410;
         var functionAddress = NativeHelpers.BaseAddress + functionOffset;
 
         getNameMethod = Marshal.GetDelegateForFunctionPointer<GetNameDelegate>(functionAddress);
@@ -41,7 +41,7 @@ internal static class NativeFunctions
         return Marshal.PtrToStringAnsi((IntPtr)getNameMethod(component));
     }
 
-    // Delegate for PPtr<>::operator->()
+    // Delegate for PPtr<Transform>::operator->()
     // Called by OffMeshLink::UpdateMovedPositions(), which is
     // inlined into NavMeshManager::Update() in Release.
     [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
@@ -51,9 +51,9 @@ internal static class NativeFunctions
 
     private static void SetUpGetPPtr()
     {
-        var functionOffset = 0x16A8C0;
+        var functionOffset = 0x153DE0;
         if (NativeHelpers.IsDebugBuild)
-            functionOffset = 0x48B610;
+            functionOffset = 0x22D160;
         var functionAddress = NativeHelpers.BaseAddress + functionOffset;
 
         derefPPtrMethod = Marshal.GetDelegateForFunctionPointer<DerefPPtrDelegate>(functionAddress);
@@ -73,9 +73,9 @@ internal static class NativeFunctions
 
     private static void SetUpGetPosition()
     {
-        var functionOffset = 0x667050;
+        var functionOffset = 0x679BD0;
         if (NativeHelpers.IsDebugBuild)
-            functionOffset = 0xC76330;
+            functionOffset = 0xCF2630;
         var functionAddress = NativeHelpers.BaseAddress + functionOffset;
 
         getPositionMethod = Marshal.GetDelegateForFunctionPointer<GetPositionDelegate>(functionAddress);
@@ -96,9 +96,9 @@ internal static class NativeFunctions
 
     private static void SetUpGetQueryExtents()
     {
-        var functionOffset = 0xA270C0;
+        var functionOffset = 0xA49E30;
         if (NativeHelpers.IsDebugBuild)
-            functionOffset = 0x127CD40;
+            functionOffset = 0x12C7830;
         var functionAddress = NativeHelpers.BaseAddress + functionOffset;
 
         getQueryExtentsMethod = Marshal.GetDelegateForFunctionPointer<GetQueryExtentsDelegate>(functionAddress);
@@ -119,9 +119,9 @@ internal static class NativeFunctions
 
     private static void SetUpGetLinkQueryExtents()
     {
-        var functionOffset = 0xA27220;
+        var functionOffset = 0xA49F90;
         if (NativeHelpers.IsDebugBuild)
-            functionOffset = 0x127C9D0;
+            functionOffset = 0x12C7520;
         var functionAddress = NativeHelpers.BaseAddress + functionOffset;
 
         getLinkQueryExtentsMethod = Marshal.GetDelegateForFunctionPointer<GetLinkQueryExtentsDelegate>(functionAddress);
@@ -150,9 +150,9 @@ internal static class NativeFunctions
     private static void SetUpGetCrowdAgent()
     {
         if (NativeHelpers.IsDebugBuild)
-            getAgentByRefMethod = Marshal.GetDelegateForFunctionPointer<GetAgentByRefDelegate>(NativeHelpers.BaseAddress + 0x129CDD0);
+            getAgentByRefMethod = Marshal.GetDelegateForFunctionPointer<GetAgentByRefDelegate>(NativeHelpers.BaseAddress + 0x12E7C50);
         else
-            getInternalAgentMethod = Marshal.GetDelegateForFunctionPointer<GetInternalAgentDelegate>(NativeHelpers.BaseAddress + 0xA39EE0);
+            getInternalAgentMethod = Marshal.GetDelegateForFunctionPointer<GetInternalAgentDelegate>(NativeHelpers.BaseAddress + 0xA5D290);
     }
 
     private static unsafe IntPtr GetCrowdAgent(IntPtr agent)
@@ -187,9 +187,9 @@ internal static class NativeFunctions
     private static void SetUpGetAgentQueryFilter()
     {
         if (NativeHelpers.IsDebugBuild)
-            getAgentFilterMethod = Marshal.GetDelegateForFunctionPointer<GetAgentFilterDelegate>(NativeHelpers.BaseAddress + 0x129CE20);
+            getAgentFilterMethod = Marshal.GetDelegateForFunctionPointer<GetAgentFilterDelegate>(NativeHelpers.BaseAddress + 0x12E7CA0);
         else
-            getFilterMethod = Marshal.GetDelegateForFunctionPointer<GetFilterDelegate>(NativeHelpers.BaseAddress + 0xA39E50);
+            getFilterMethod = Marshal.GetDelegateForFunctionPointer<GetFilterDelegate>(NativeHelpers.BaseAddress + 0xA5D200);
     }
 
     internal static unsafe QueryFilter* GetAgentQueryFilter(IntPtr agent)
@@ -208,9 +208,9 @@ internal static class NativeFunctions
 
     private static void SetUpGrowString()
     {
-        var functionOffset = 0x15AFF0;
+        var functionOffset = 0x15DE30;
         if (NativeHelpers.IsDebugBuild)
-            functionOffset = 0x22B9D0;
+            functionOffset = 0x232870;
         var functionAddress = NativeHelpers.BaseAddress + functionOffset;
 
         growStringMethod = Marshal.GetDelegateForFunctionPointer<GrowStringDelegate>(functionAddress);
@@ -229,9 +229,9 @@ internal static class NativeFunctions
 
     private static void SetUpScriptingWrapperFor()
     {
-        var functionOffset = 0x777120;
+        var functionOffset = 0x78E9D0;
         if (NativeHelpers.IsDebugBuild)
-            functionOffset = 0xFD6800;
+            functionOffset = 0x101CD70;
         var functionAddress = NativeHelpers.BaseAddress + functionOffset;
 
         scriptingWrapperForMethod = Marshal.GetDelegateForFunctionPointer<ScriptingWrapperForDelegate>(functionAddress);

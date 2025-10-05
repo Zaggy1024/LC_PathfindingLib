@@ -28,9 +28,9 @@ internal static class NativeHelpers
     // Returned by GetNavMeshManager(), which is called by OffMeshLink::AddConnection().
     internal static unsafe IntPtr GetNavMeshManager()
     {
-        var offset = 0x1CEA688;
+        var offset = 0x1D35F18;
         if (IsDebugBuild)
-            offset = 0x2E085E0;
+            offset = 0x352D6E0;
         return *(IntPtr*)(BaseAddress + offset);
     }
 
@@ -52,9 +52,9 @@ internal static class NativeHelpers
 
     internal static unsafe IntPtr GetNavMeshProjectSettings()
     {
-        var offset = 0x1C81548;
+        var offset = 0x1CCBA68;
         if (IsDebugBuild)
-            offset = 0x2D75CB8;
+            offset = 0x2E08908;
         return *(IntPtr*)(BaseAddress + offset);
     }
 

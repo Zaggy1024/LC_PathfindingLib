@@ -20,9 +20,9 @@ internal static class PatchNavMeshManagerUpdate
 
     internal static void Apply()
     {
-        var functionOffset = 0xA29B00;
+        var functionOffset = 0xA4C8B0;
         if (NativeHelpers.IsDebugBuild)
-            functionOffset = 0x1284E80;
+            functionOffset = 0x12CF920;
         var functionAddress = NativeHelpers.BaseAddress + functionOffset;
 
         var hookPtr = Marshal.GetFunctionPointerForDelegate<UpdateDelegate>(UpdateDetour);

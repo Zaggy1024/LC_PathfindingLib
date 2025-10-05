@@ -27,9 +27,9 @@ internal static class PatchConnectUnconnectOffMeshConnection
 
     private static void SetUpConnectOffMeshConnectionDetour()
     {
-        var functionOffset = 0xA54AD0;
+        var functionOffset = 0xA78840;
         if (NativeHelpers.IsDebugBuild)
-            functionOffset = 0x12AD4C0;
+            functionOffset = 0x12F8B60;
         var functionAddress = NativeHelpers.BaseAddress + functionOffset;
 
         var hookPtr = Marshal.GetFunctionPointerForDelegate<ConnectOffMeshConnectionDelegate>(ConnectOffMeshConnectionDetour);
@@ -60,9 +60,9 @@ internal static class PatchConnectUnconnectOffMeshConnection
 
     private static void SetUpUnconnectOffMeshConnectionDetour()
     {
-        var functionOffset = 0xA55C30;
+        var functionOffset = 0xA799B0;
         if (NativeHelpers.IsDebugBuild)
-            functionOffset = 0x12B9520;
+            functionOffset = 0x1305070;
         var functionAddress = NativeHelpers.BaseAddress + functionOffset;
 
         var hookPtr = Marshal.GetFunctionPointerForDelegate<UnconnectOffMeshConnectionDelegate>(UnconnectOffMeshConnectionDetour);

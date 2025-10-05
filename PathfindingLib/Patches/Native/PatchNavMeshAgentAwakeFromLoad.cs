@@ -25,9 +25,9 @@ internal static class PatchNavMeshAgent
 
     private static void HookAwakeFromLoad()
     {
-        var awakeFromLoadOffset = 0xA3A810;
+        var awakeFromLoadOffset = 0xA5DBE0;
         if (NativeHelpers.IsDebugBuild)
-            awakeFromLoadOffset = 0x1293A20;
+            awakeFromLoadOffset = 0x12DE850;
         var awakeFromLoadAddress = NativeHelpers.BaseAddress + awakeFromLoadOffset;
 
         var hookPtr = Marshal.GetFunctionPointerForDelegate<AwakeFromLoadDelegate>(AwakeFromLoadDetour);
