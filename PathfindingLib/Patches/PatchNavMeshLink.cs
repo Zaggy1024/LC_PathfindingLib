@@ -15,7 +15,8 @@ internal static class PatchNavMeshLink
 {
     private static unsafe bool TryUpdatingConnectionInPlace(NavMeshLink link)
     {
-        if (NativeHelpers.GetNavMesh() == IntPtr.Zero)
+        var navMesh = NativeHelpers.GetNavMesh();
+        if (navMesh == IntPtr.Zero)
             return false;
 
         var handle = link.m_LinkInstance.id;
@@ -54,7 +55,6 @@ internal static class PatchNavMeshLink
 
         NavMeshLock.BeginWrite();
 
-        var navMesh = NativeHelpers.GetNavMesh();
         PatchConnectUnconnectOffMeshConnection.UnconnectOffMeshConnection(navMesh, connectionIndex);
 
         PatchOffMeshLinkUpdatePositions.UpdateConnection(ref connection, start, end, up, link.width, link.costModifier, link.bidirectional, (byte)link.area, link.isActiveAndEnabled, link.GetInstanceID(), link.agentTypeID);

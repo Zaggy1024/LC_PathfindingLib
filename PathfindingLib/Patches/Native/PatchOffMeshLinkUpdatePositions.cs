@@ -91,7 +91,8 @@ internal static class PatchOffMeshLinkUpdatePositions
         // invalidated unnecessarily. Instead, if a connection already exists for this link, reuse
         // and update it.
 
-        if (NativeHelpers.GetNavMesh() == IntPtr.Zero)
+        var navMesh = NativeHelpers.GetNavMesh();
+        if (navMesh == IntPtr.Zero)
             return false;
 
         ref var fields = ref NativeNavMeshUtils.GetOffMeshLinkFields(offMeshLink);
@@ -133,7 +134,6 @@ internal static class PatchOffMeshLinkUpdatePositions
 
         NavMeshLock.BeginWrite();
 
-        var navMesh = NativeHelpers.GetNavMesh();
         PatchConnectUnconnectOffMeshConnection.UnconnectOffMeshConnection(navMesh, connectionIndex);
 
         UpdateConnection(ref connection, startPos, endPos, Vector3.up, width: 0, fields.CostOverride, fields.Bidirectional, (byte)fields.Area, fields.Activated, instanceID, fields.AgentTypeID);
