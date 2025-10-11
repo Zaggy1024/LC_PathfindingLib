@@ -1,3 +1,6 @@
+## Version 2.4.1
+- Fixed a crash that could occur, usually during ship landing, with `PatchOffMeshConnectionStutterStepping` enabled.
+
 ## Version 2.4.0
 - Updated native hooks to support Unity 2022.3.62f2 (Lethal Company v73). This breaks compatibility with previous versions.
 
