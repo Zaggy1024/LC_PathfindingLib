@@ -74,9 +74,9 @@ internal static class NativeHelpers
 
     internal static unsafe ref FreeList<OffMeshConnection> GetOffMeshConnectionFreeList()
     {
-        var offset = 0x40;
+        var offset = 0x80;
         if (IsDebugBuild)
-            offset = 0x48;
+            offset = 0x88;
 
         return ref *(FreeList<OffMeshConnection>*)(GetNavMesh() + offset);
     }
