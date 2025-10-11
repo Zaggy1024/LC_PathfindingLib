@@ -26,6 +26,8 @@ public class PathfindingLibPlugin : BaseUnityPlugin
 
     internal ConfigEntry<bool> PatchOffMeshConnectionStutterStepping;
 
+    internal static bool DisableOffMeshConnectionStutterSteppingPatches = false;
+
     public void Awake()
     {
         Instance = this;
@@ -63,5 +65,11 @@ public class PathfindingLibPlugin : BaseUnityPlugin
         harmony.PatchAll(typeof(PatchNavMeshLink));
 
         PatchOffMeshLinkUpdatePositions.Apply();
+    }
+
+    internal static void DisableOffMeshConnectionStutterSteppingPatchesThisRun()
+    {
+        Instance.Logger.LogError("Disabling the stutter stepping patch for this run.");
+        DisableOffMeshConnectionStutterSteppingPatches = true;
     }
 }

@@ -15,6 +15,9 @@ internal static class PatchNavMeshLink
 {
     private static unsafe bool TryUpdatingConnectionInPlace(NavMeshLink link)
     {
+        if (PathfindingLibPlugin.DisableOffMeshConnectionStutterSteppingPatches)
+            return false;
+
         var navMesh = NativeHelpers.GetNavMesh();
         if (navMesh == IntPtr.Zero)
             return false;
@@ -51,7 +54,11 @@ internal static class PatchNavMeshLink
             return false;
         ref var connection = ref connectionsList.Elements[connectionIndex];
         if (connection.Salt != connectionSalt)
+        {
+            PathfindingLibPlugin.Instance.Logger.LogError($"NavMeshLink {link}'s salt didn't match the value stored in the registry ({connectionSalt} != {connection.Salt}).");
+            PathfindingLibPlugin.DisableOffMeshConnectionStutterSteppingPatchesThisRun();
             return false;
+        }
 
         NavMeshLock.BeginWrite();
 

@@ -85,6 +85,9 @@ internal static class PatchOffMeshLinkUpdatePositions
 
     private static unsafe bool TryUpdatingConnectionInPlace(IntPtr offMeshLink)
     {
+        if (PathfindingLibPlugin.DisableOffMeshConnectionStutterSteppingPatches)
+            return false;
+
         // OffMeshLink::UpdatePositions() calls NavMesh::RemoveOffMeshConnection() and subsequently
         // NavMesh::AddOffMeshConnection(). This removes the link from several different pieces of
         // memory, and bumps the modification count of the navmesh. This seems to cause paths to be
@@ -127,7 +130,11 @@ internal static class PatchOffMeshLinkUpdatePositions
             return false;
         ref var connection = ref connectionsList.Elements[connectionIndex];
         if (connection.Salt != connectionSalt)
+        {
+            PathfindingLibPlugin.Instance.Logger.LogError($"OffMeshConnection salt didn't match the value stored in the OffMeshLink {wrapper} ({connectionSalt} != {connection.Salt}).");
+            PathfindingLibPlugin.DisableOffMeshConnectionStutterSteppingPatchesThisRun();
             return false;
+        }
 
         var startPos = NativeNavMeshUtils.GetOffMeshLinkEndPointPosition(startTransform);
         var endPos = NativeNavMeshUtils.GetOffMeshLinkEndPointPosition(endTransform);
